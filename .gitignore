@@ -1,0 +1,6 @@
+*.txt
+*.json
+
+bin/*
+out/*
+data/*

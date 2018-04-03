@@ -1,0 +1,3 @@
+[submodule "lib/ccsvparser"]
+    path = lib/ccsvparser
+    url = git@github.com:JamesRamm/csv_parser.git
