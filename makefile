@@ -66,7 +66,7 @@ GPU_OBJ = $(OBJ)/mcmc_gpu.o $(OBJ)/mcmc_host_gpu.o
 all: directories $(BIN)/mcmc_cpu $(BIN)/mcmc_gpu
 
 directories:
-	mkdir -p $(OBJ) $(BIN) $(OUT) $(DEPEND)
+	mkdir -p $(OBJ) $(BIN) $(OUT)
 
 synthetic: $(DATA_SCRIPTS)
 	python $(DATA_SCRIPTS)/synthetic_generation.py -sz 500 -dim 3
