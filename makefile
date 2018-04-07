@@ -56,33 +56,31 @@ INCLUDES += -I$(GSL)/include -I$(CUDA)/include -Iinclude \
 LIB_OBJ = $(OBJ)/csvparser.o
 UTIL_OBJ = $(OBJ)/alloc_util.o $(OBJ)/data_util.o $(OBJ)/processing_util.o
 ALL_OBJ = $(LIB_OBJ) $(UTIL_OBJ)
-HOST_OBJ = $(OBJ)/mcmc_host.o
 CPU_OBJ = $(OBJ)/cpu_host.o $(OBJ)/mcmc_cpu.o
-GPU_OBJ = $(OBJ)/mcmc_gpu.o $(OBJ)/mcmc_host_gpu.o
-# ALL_OBJ = $(CPU_OBJ) $(GPU_OBJ) $(LIB_OBJ) $(HOST_OBJ)
+GPU_OBJ = $(OBJ)/gpu_host.o $(OBJ)/mcmc_gpu_v1.o
 
 
-
-all: directories $(BIN)/mcmc_cpu $(BIN)/mcmc_gpu
-
-directories:
-	mkdir -p $(OBJ) $(BIN) $(OUT)
+all: clean $(BIN)/mcmc_cpu $(BIN)/mcmc_gpu
 
 synthetic: $(DATA_SCRIPTS)
 	python $(DATA_SCRIPTS)/synthetic_generation.py -sz 500 -dim 3
 
-$(BIN)/mcmc_cpu: $(CPU_OBJ) $(ALL_OBJ)
-	mkdir -p $(OUT)/cpu/synthetic $(OUT)/cpu/mnist
+$(BIN)/mcmc_cpu: $(ALL_OBJ) $(CPU_OBJ)
 	$(GCC) $(GCCFLAGS) $^ -o $@ $(LIBRARIES)
 
+
 $(BIN)/mcmc_gpu: $(GPU_OBJ) $(ALL_OBJ)
-	mkdir -p $(OUT)/gpu/synthetic $(OUT)/gpu/mnist
+	mkdir -p $(OBJ) $(BIN) $(OUT)/gpu/synthetic $(OUT)/gpu/mnist
 	$(GCC) $(GCCFLAGS) $^ -o $@ $(LIBRARIES)
 
 clean:
 	rm -rf $(BIN)
 	rm -rf $(OBJ)
 	rm -rf $(OUT)
+
+	mkdir -p $(OBJ) $(BIN) 
+	mkdir -p $(OUT)/cpu/synthetic $(OUT)/cpu/mnist
+	mkdir -p $(OUT)/gpu/synthetic $(OUT)/gpu/mnist
 
 $(OBJ)/%.o: %.cu
 	$(NVCC) $(INCLUDES) $(NVCCFLAGS) -o $@ -c $<
@@ -91,4 +89,4 @@ $(OBJ)/%.o: %.c
 	$(GCC) $(INCLUDES) $(GCCFLAGS) -o $@ -c $<
 
 cpu: $(BIN)/mcmc_cpu
-	$(BIN)/mcmc_cpu -d 1 -sz 500 -dim 3 -samp 20000 -burn 5000 -sd 0.7 -lag 500 -autoc 3 -norm 1 -out 3 -aout 3
+	$(BIN)/mcmc_cpu -d 1 -sz 500 -dim 3 -samp 20000 -burn 5000 -sd 1.8 -lag 500 -autoc 3 -norm 1 -out 3 -aout 3

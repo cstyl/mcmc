@@ -1,39 +1,34 @@
-#include "cpu_host.h"
+// #include "cpu_host.h"
+// #include "gpu_host.h"
 #include "processing_util.h"
 
-void normalise_samples(int data_dim, int samples, 
-                        int burn_samples, double bias_mu)
+void normalise_samples(double *raw_in, double *norm_out,
+                      int data_dim, int sz)
 {
   int samp_idx, dim_idx, idx;
-  // normalising burn samples
-  for(samp_idx=0; samp_idx<burn_samples; samp_idx++){
+  double bias_mu = get_bias_mean(raw_in, data_dim, sz);
+
+  for(samp_idx=0; samp_idx<sz; samp_idx++){
     for(dim_idx=0; dim_idx<data_dim; dim_idx++){
       idx = samp_idx*data_dim+dim_idx;
-      norm_burn_matrix[idx] = burn_matrix[idx] / bias_mu;
-    }
-  }
-  // normalising parameter samples
-  for(samp_idx=0; samp_idx<samples; samp_idx++){
-    for(dim_idx=0; dim_idx<data_dim; dim_idx++){
-      idx = samp_idx*data_dim+dim_idx;
-      norm_sample_matrix[idx] = sample_matrix[idx] / bias_mu;
+      norm_out[idx] = raw_in[idx] / bias_mu;
     }
   }
 }
 
-double get_bias_mean(int data_dim, int samples)
+double get_bias_mean(double *in_vec, int data_dim, int sample_sz)
 {
   int samp_idx;
   double mu = 0;
  
-  for(samp_idx=0; samp_idx<samples; samp_idx++){
-    mu += sample_matrix[samp_idx*data_dim];  // get bias mean
+  for(samp_idx=0; samp_idx<sample_sz; samp_idx++){
+    mu += in_vec[samp_idx*data_dim];  // get bias mean
   }
 
-  return mu/samples;
+  return mu/sample_sz;
 }
 
-double shift_autocorrelation(double *matrix, int data_dim, 
+double shift_autocorrelation(double *out_v, double *in_m, int data_dim, 
                               int samples, int lag_idx)
 { 
   double *mean = (double *) malloc(data_dim * sizeof(double));;
@@ -46,26 +41,26 @@ double shift_autocorrelation(double *matrix, int data_dim,
   int samp_idx,dim_idx;
 
   for(k=0; k<=lag_idx; k++){  // test for various lagk to find where samples become independent
-    get_mean(data_dim, samples-k, matrix, mean);
-    get_variance(data_dim, samples-k, matrix, variance, mean);
+    get_mean(data_dim, samples-k, in_m, mean);
+    get_variance(data_dim, samples-k, in_m, variance, mean);
 
     memset(lag, 0, data_dim * sizeof(double));
 
     for(samp_idx=0; samp_idx<samples-k; samp_idx++){
       for(dim_idx=0; dim_idx<data_dim; dim_idx++){
-        lag[dim_idx] += (matrix[samp_idx*data_dim+dim_idx] - mean[dim_idx]) 
-                        * (matrix[(samp_idx+k)*data_dim+dim_idx] - mean[dim_idx]);
+        lag[dim_idx] += (in_m[samp_idx*data_dim+dim_idx] - mean[dim_idx]) 
+                        * (in_m[(samp_idx+k)*data_dim+dim_idx] - mean[dim_idx]);
       }
     }
     double prod = 1;
     for(dim_idx=0; dim_idx<data_dim; dim_idx++){
       prod *= lag[dim_idx] / variance[dim_idx]; // assuming iid then multiply each dimension
     }  
-    autocorrelation_shift[k] = prod;
-    autocorrelation_sum += autocorrelation_shift[k];
+    out_v[k] = prod;
+    autocorrelation_sum += out_v[k];
   }
 
-  autocorrelation_sum -= autocorrelation_shift[0]; // remove lag0 contribution
+  autocorrelation_sum -= out_v[0]; // remove lag0 contribution
 
   free(mean);
   free(variance);
@@ -73,7 +68,7 @@ double shift_autocorrelation(double *matrix, int data_dim,
   return autocorrelation_sum;
 }
 
-double circular_autocorrelation(double *matrix, int data_dim, 
+double circular_autocorrelation(double *out_v, double *in_m, int data_dim, 
                                 int samples, int lag_idx)
 {
   double *mean = (double *) malloc(data_dim * sizeof(double));;
@@ -86,8 +81,8 @@ double circular_autocorrelation(double *matrix, int data_dim,
   int k,shift_idx;
   bool wrap;
  
-  get_mean(data_dim, samples, matrix, mean);
-  get_variance(data_dim, samples, matrix, variance, mean);
+  get_mean(data_dim, samples, in_m, mean);
+  get_variance(data_dim, samples, in_m, variance, mean);
 
   for(k=0; k<lag_idx; k++){
     memset(lag, 0, data_dim * sizeof(double));
@@ -106,8 +101,8 @@ double circular_autocorrelation(double *matrix, int data_dim,
       }
 
       for(dim_idx=0; dim_idx<data_dim; dim_idx++){
-        lag[dim_idx] += (matrix[samp_idx * data_dim + dim_idx] - mean[dim_idx]) 
-                        * (matrix[shift_idx * data_dim + dim_idx] - mean[dim_idx]);
+        lag[dim_idx] += (in_m[samp_idx * data_dim + dim_idx] - mean[dim_idx]) 
+                        * (in_m[shift_idx * data_dim + dim_idx] - mean[dim_idx]);
       }
     }
 
@@ -115,11 +110,11 @@ double circular_autocorrelation(double *matrix, int data_dim,
     for(dim_idx = 0; dim_idx < data_dim; dim_idx++){
       prod *= lag[dim_idx] / variance[dim_idx]; // assuming iid then multiply each dimension
     }  
-    autocorrelation_circ[k] = prod;
-    autocorrelation_sum += autocorrelation_circ[k];       
+    out_v[k] = prod;
+    autocorrelation_sum += out_v[k];       
   }
   
-  autocorrelation_sum -= autocorrelation_circ[0]; // remove lag0 contribution
+  autocorrelation_sum -= out_v[0]; // remove lag0 contribution
   
   free(mean);
   free(variance);

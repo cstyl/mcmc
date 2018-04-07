@@ -2,13 +2,13 @@
  * Implementation of MCMC Metropolis-Hastings Algorithm
  * using CPU for processing
  */
-#include "cpu_host.h"
 #include "mcmc_cpu.h"
 
 const int PRIOR_SD = 10;
 
-void Metropolis_Hastings_cpu(in_struct in_par, out_struct *out_par, 
-                              double rw_sd)
+void Metropolis_Hastings_cpu(double *x, double *y, gsl_rng *r,
+                            in_struct in_par, out_struct *out_par, 
+                            double rw_sd, double *samples_m, double *burn_m)
 {
   double *proposed_sample = (double *) malloc(in_par.d_data * sizeof(double));
   double *current_sample = (double *) malloc(in_par.d_data * sizeof(double)); 
@@ -22,11 +22,10 @@ void Metropolis_Hastings_cpu(in_struct in_par, out_struct *out_par,
   start  = clock();
 
   // initialisation
-  memcpy(current_sample, sample_matrix, in_par.d_data*sizeof(double));
+  memcpy(current_sample, burn_m, in_par.d_data*sizeof(double));
 
   current_posterior = log_prior(current_sample, in_par.d_data) 
-                      + log_likelihood(current_sample, in_par.d_data, in_par.Nd);
-
+                      + log_likelihood(current_sample, x, y, in_par.d_data, in_par.Nd);
   //perfrom metropolis-hastings algorithm
   for(i=1; i<in_par.Ns+in_par.burn_in; i++){    
     for(dim_idx = 0; dim_idx < in_par.d_data; dim_idx++){
@@ -34,7 +33,7 @@ void Metropolis_Hastings_cpu(in_struct in_par, out_struct *out_par,
                                   + gsl_ran_gaussian_ziggurat(r, rw_sd); // random walk using Marsaglia-Tsang ziggurat algorithm
     }
 
-    acceptance = acceptance_ratio(proposed_sample, in_par.d_data, in_par.Nd);   // Calculate acceptance ratio in the log domain
+    acceptance = acceptance_ratio(proposed_sample, x, y, in_par.d_data, in_par.Nd);   // Calculate acceptance ratio in the log domain
     u = gsl_rng_uniform(r);
 
     if(u <= acceptance)    // decide if you accept the proposed theta or not
@@ -49,10 +48,10 @@ void Metropolis_Hastings_cpu(in_struct in_par, out_struct *out_par,
 
     if(i < in_par.burn_in){
       for(dim_idx = 0; dim_idx < in_par.d_data; dim_idx++)
-        burn_matrix[(i * in_par.d_data) + dim_idx] = temp_sample[dim_idx];
+        burn_m[(i * in_par.d_data) + dim_idx] = temp_sample[dim_idx];
     }else{
       for(dim_idx = 0; dim_idx < in_par.d_data; dim_idx++)
-        sample_matrix[(i - in_par.burn_in) * in_par.d_data + dim_idx] = temp_sample[dim_idx];
+        samples_m[(i - in_par.burn_in) * in_par.d_data + dim_idx] = temp_sample[dim_idx];
     }        
   }
 
@@ -71,10 +70,11 @@ void Metropolis_Hastings_cpu(in_struct in_par, out_struct *out_par,
 }
 
 /************************************ PRIVATE FUNCTIONS **************************************/
-double acceptance_ratio(double *sample, int data_dim, int datapoints)
+double acceptance_ratio(double *sample, double *x, double *y, 
+                        int data_dim, int datapoints)
 {
   double log_ratio;
-  proposed_posterior = log_prior(sample, data_dim) + log_likelihood(sample, data_dim, datapoints);
+  proposed_posterior = log_prior(sample, data_dim) + log_likelihood(sample, x, y, data_dim, datapoints);
   log_ratio = proposed_posterior - current_posterior;
   return exp(log_ratio);
 }
@@ -91,7 +91,8 @@ double log_prior(double *sample, int data_dim)
 }
 
 /* Calculate log-likelihood for each data-point and accumulate the contributions */
-double log_likelihood(double *sample, int data_dim, int datapoints)
+double log_likelihood(double *sample, double *x, double *y,
+                      int data_dim, int datapoints)
 {
   double log_lik = 0;
   int idx;

@@ -1,13 +1,15 @@
 #ifndef __PROCESSING_UTIL_H__
 #define __PROCESSING_UTIL_H__
 
-void normalise_samples(int data_dim, int samples, 
-                        int burn_samples, double bias_mu);
-double get_bias_mean(int data_dim, int samples);
+#include "resources.h"
 
-double shift_autocorrelation(double *matrix, int data_dim, 
+void normalise_samples(double *raw_in, double *norm_out,
+                      int data_dim, int sz);
+double get_bias_mean(double *in_vec, int data_dim, int sample_sz);
+
+double shift_autocorrelation(double *out_v, double *in_m, int data_dim, 
                               int samples, int lag_idx);
-double circular_autocorrelation(double *matrix, int data_dim, 
+double circular_autocorrelation(double *out_v, double *in_m, int data_dim, 
                                 int samples, int lag_idx);
 void get_mean(int data_dim, int samples, 
               double *data, double *mu);

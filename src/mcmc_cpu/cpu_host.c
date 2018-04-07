@@ -1,5 +1,5 @@
 /*
- * Implementation of MCMC Metropolis-Hastings Algorithm
+ * Implementation of MCMC Metropolis-Hastings Algorithm on CPU
  * Aim: Obtain a sequence of RANDOM samples from a probability distribution
  * from which direct sampling is difficult
  * The sequence can be used to approximate the distribution (eg histogram) 
@@ -7,14 +7,20 @@
  */
 
 #include "cpu_host.h"
-#include "csvparser.h"
-#include "alloc_util.h"
-#include "data_util.h"
-#include "processing_util.h"
-#include "mcmc_cpu.h"
 
 int main(int argc, char * argv[])
 {
+  double *x = NULL;    // data points
+  double *y = NULL;    // labels
+  double *sample_m = NULL;  // contains the samples in linearised space
+  double *norm_sample_m = NULL;  // contains the normalised samples in linearised space
+  double *burn_m = NULL; // contains the burn samples in linearised space
+  double *norm_burn_m = NULL; // contains the normalised burn samples in linearised space     
+  double *shift_auto_v = NULL;
+  double *circ_auto_v = NULL;
+  
+  gsl_rng *r = NULL;
+  
   data_case_t d_case = NoData;
   autocorr_case_t a_case = NoAut;
   out_case_t o_case = NoOut;
@@ -131,19 +137,19 @@ int main(int argc, char * argv[])
     }
   }
 
-  data_vectors_cpu(parameters.d_data, parameters.Nd);
-  read_data(parameters.d_data, parameters.Nd, d_case);
+  malloc_data_vectors_cpu(&x, &y, parameters.d_data, parameters.Nd);
+  read_data(x, y, parameters.d_data, parameters.Nd, d_case);
 
-  init_rng();
+  init_rng(&r);
 
-  sample_vectors(parameters.d_data, parameters.Ns, parameters.burn_in);
-  autocorrelation_vectors(a_case, lag_idx);
+  malloc_sample_vectors(&sample_m, &burn_m, parameters.d_data, parameters.Ns, parameters.burn_in);
+  malloc_autocorrelation_vectors(&shift_auto_v, &circ_auto_v, a_case, lag_idx);
 
-  memset(burn_matrix, 0, parameters.d_data*sizeof(double));
+  memset(burn_m, 0, parameters.d_data*sizeof(double));
 
-  Metropolis_Hastings_cpu(parameters, &results, rw_sdev);
+  Metropolis_Hastings_cpu(x, y, r, parameters, &results, rw_sdev, sample_m, burn_m);
 
-  fprintf(stdout, "acceptance_ratio = %f\n", results.acc_ratio);
+  fprintf(stdout, "acceptance_ratio = %f\n", results.acc_ratio * 100);
   fprintf(stdout, "time = %dm:%ds:%dms\n", results.time_m, results.time_s, results.time_ms);
   if(d_case == 1){
     strcpy(rootdir, "out/cpu/synthetic/");
@@ -151,20 +157,24 @@ int main(int argc, char * argv[])
     strcpy(rootdir, "out/cpu/mnist/");
   }
 
-  // calcuate normalised samples
-  if((norm == 1) || (o_case == AllOut)){
-    normalised_sample_vectors(parameters.d_data, parameters.Ns, parameters.burn_in);
+  // normalise samples
+  if((norm == 1) || (o_case == Normalized) || (o_case == AllOut)){
+    malloc_normalised_sample_vectors(&norm_sample_m, &norm_burn_m, 
+                                      parameters.d_data, parameters.Ns, 
+                                      parameters.burn_in);
+    normalise_samples(burn_m, norm_burn_m, parameters.d_data, parameters.burn_in); 
+    normalise_samples(sample_m, norm_sample_m, parameters.d_data, parameters.Ns);
   }
   // calculate autocorrelation
   if((a_case == Shift) || (a_case == Both) || (a_o_case == AllAut)){
-    shift_autocorr_sum = shift_autocorrelation(sample_matrix, parameters.d_data, 
-                                          parameters.Ns, lag_idx);
+    shift_autocorr_sum = shift_autocorrelation(shift_auto_v, sample_m, parameters.d_data, 
+                                              parameters.Ns, lag_idx);
     results.ess_shift = parameters.Ns / (1 + 2*shift_autocorr_sum);
     fprintf(stdout, "ess_shift = %f\n", results.ess_shift);
   }
 
   if((a_case == Circ) || (a_case == Both) || (a_o_case == AllAut)){
-    circ_autocorr_sum = circular_autocorrelation(sample_matrix, parameters.d_data, 
+    circ_autocorr_sum = circular_autocorrelation(circ_auto_v ,sample_m, parameters.d_data, 
                                                   parameters.Ns, lag_idx);
     results.ess_circular = parameters.Ns / (1 + 2*circ_autocorr_sum);
     fprintf(stdout, "ess_circular = %f\n", results.ess_circular);
@@ -172,25 +182,24 @@ int main(int argc, char * argv[])
 
   // output normal files
   if((o_case == Raw) || (o_case == AllOut)){
-    output_files(rootdir, parameters.d_data, 
+    output_files(rootdir, sample_m, burn_m, parameters.d_data, 
                   parameters.Ns, parameters.burn_in);
   }
   // output normalised files
   if((o_case == Normalized) || (o_case == AllOut)){
-    output_norm_files(rootdir, parameters.d_data, 
-                      parameters.Ns, parameters.burn_in);
+    output_norm_files(rootdir, norm_sample_m, norm_burn_m, 
+                      parameters.d_data, parameters.Ns, parameters.burn_in);
   }
-
   // output autocorrelation
   if(a_o_case != NoAutOut){
-    output_autocorrelation_files(rootdir, a_o_case, lag_idx);
+    output_autocorrelation_files(rootdir, shift_auto_v, circ_auto_v, a_o_case, lag_idx);
   }
 
-  free_data_vectors_cpu();
-  free_sample_vectors();
-  free_norm_sample_vectors();
-  free_autocorrelation_vectors(a_case);
-  free_rng();
+  free_data_vectors_cpu(x, y);
+  free_sample_vectors(sample_m, burn_m);
+  free_norm_sample_vectors(norm_sample_m, norm_burn_m);
+  free_autocorrelation_vectors(shift_auto_v, circ_auto_v, a_case);
+  free_rng(r);
 
   return 0;
 }

@@ -1,10 +1,18 @@
-#include "cpu_host.h"
 #include "alloc_util.h"
 
-void data_vectors_cpu(int data_dim, int datapoints)
+void malloc_data_vectors_cpu(double **data, double **labels, 
+                        int data_dim, int datapoints)
 {
-  x = (double *) malloc(data_dim * datapoints * sizeof(double));
-  y = (double *) malloc(datapoints * sizeof(double));  
+  *data = NULL;
+  *labels = NULL;
+
+  *data = (double *) malloc(data_dim * datapoints * sizeof(double));
+  if(*data == NULL)
+    fprintf(stderr, "ERROR: Data Memory allocation did not complete successfully!\n");
+  
+  *labels = (double *) malloc(datapoints * sizeof(double));  
+  if(*labels == NULL)
+    fprintf(stderr, "ERROR: Labels Data Memory allocation did not complete successfully!\n");
 }
 
 // void data_vectors_gpu(int data_dim, int gpu_data_dim, int datapoints)
@@ -14,32 +22,59 @@ void data_vectors_cpu(int data_dim, int datapoints)
 //   y = (double *) malloc(datapoints * sizeof(double));  
 // }
 
-void sample_vectors(int data_dim, int samples, int burn_samples)
+void malloc_sample_vectors(double **parameters, double **burn_parameters, 
+                    int data_dim, int samples, int burn_samples)
 {
-  sample_matrix = (double *) malloc(data_dim * samples * sizeof(double));
-  burn_matrix =  (double *) malloc(data_dim * burn_samples * sizeof(double));
+  *parameters = NULL;
+  *burn_parameters = NULL;
+
+  *parameters = (double *) malloc(data_dim * samples * sizeof(double));
+  if(*parameters == NULL)
+    fprintf(stderr, "ERROR: Parameters Data Memory allocation did not complete successfully!\n");
+
+  *burn_parameters = (double *) malloc(data_dim * burn_samples * sizeof(double));
+  if(*burn_parameters == NULL)
+    fprintf(stderr, "ERROR: Burn Parameters Data Memory allocation did not complete successfully!\n");
 }
 
-void normalised_sample_vectors(int data_dim, int samples, int burn_samples)
+void malloc_normalised_sample_vectors(double **norm_par, double **norm_burn_par, 
+                              int data_dim, int samples, int burn_samples)
 {
-  norm_sample_matrix = (double *) malloc(data_dim * samples * sizeof(double));
-  norm_burn_matrix =  (double *) malloc(data_dim * burn_samples * sizeof(double));
+  *norm_par = NULL;
+  *norm_burn_par = NULL;
+
+  *norm_par = (double *) malloc(data_dim * samples * sizeof(double));
+  if(*norm_par == NULL)
+    fprintf(stderr, "ERROR: Normalised Parameters Data Memory allocation did not complete successfully!\n");
+
+  *norm_burn_par =  (double *) malloc(data_dim * burn_samples * sizeof(double));
+  if(*norm_burn_par == NULL)
+    fprintf(stderr, "ERROR: Normalised Burned Parameters Data Memory allocation did not complete successfully!\n");
 }
 
-void autocorrelation_vectors(int auto_case, int lag)
+void malloc_autocorrelation_vectors(double **auto_shift, double **auto_circ,
+                              int auto_case, int lag)
 {
+  *auto_shift = NULL;
+  *auto_circ = NULL;
+
   if((auto_case == 1) || (auto_case == 3)){
-    autocorrelation_shift = (double *) malloc(lag * sizeof(double));
+    *auto_shift = (double *) malloc(lag * sizeof(double));
+    if(*auto_shift == NULL)
+      fprintf(stderr, "ERROR: Shift Autocorrelation Data Memory allocation did not complete successfully!\n");    
   }
+
   if((auto_case == 2) || (auto_case == 3)){  
-    autocorrelation_circ = (double *) malloc(lag * sizeof(double));
+    *auto_circ = (double *) malloc(lag * sizeof(double));
+    if(*auto_circ == NULL)
+      fprintf(stderr, "ERROR: Circular Autocorrelation Data Memory allocation did not complete successfully!\n");  
   }  
 }
 
-void free_data_vectors_cpu()
+void free_data_vectors_cpu(double *data, double *labels)
 {
-  free(x);
-  free(y);
+  free(data);
+  free(labels);
 }
 
 // void free_data_vectors_gpu()
@@ -49,39 +84,42 @@ void free_data_vectors_cpu()
 //   free(y);
 // }
 
-void free_sample_vectors()
+void free_sample_vectors(double *parameters, double *burn_parameters)
 {
-  free(sample_matrix);
-  free(burn_matrix);  
+  free(parameters);
+  free(burn_parameters);  
 }
 
-void free_norm_sample_vectors()
+void free_norm_sample_vectors(double *norm_par, double *norm_burn_par)
 {
-  free(norm_sample_matrix);
-  free(norm_burn_matrix);
+  free(norm_par);
+  free(norm_burn_par);
 }
 
-void free_autocorrelation_vectors(int auto_case)
+void free_autocorrelation_vectors(double *auto_shift, double *auto_circ,
+                                  int auto_case)
 {
   if((auto_case == 1) || (auto_case == 3)){
-    free(autocorrelation_shift);
+    free(auto_shift);
   }
   if((auto_case == 2) || (auto_case == 3)){  
-    free(autocorrelation_circ);
+    free(auto_circ);
   }  
 }
 
-void init_rng()
+void init_rng(gsl_rng **r)
 {
   const gsl_rng_type * T;
 
   gsl_rng_env_setup();
 
   T = gsl_rng_default;
-  r = gsl_rng_alloc(T);
+  *r = gsl_rng_alloc(T);
+  if(*r == NULL)
+    fprintf(stderr, "ERROR: RNG Allocation did not complete successfully!\n");
 }
 
-void free_rng()
+void free_rng(gsl_rng *r)
 {
   gsl_rng_free(r); 
 }
