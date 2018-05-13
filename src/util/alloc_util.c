@@ -17,20 +17,25 @@ void malloc_data_vectors_cpu(data_str *data, mcmc_str mcin)
 void malloc_data_vectors_gpu(data_str *data, mcmc_str mcin)
 {
   data->data = NULL;
-  data->gpudata = NULL;
   data->labels = NULL;
+  data->gpudata = NULL;
+  data->gpulabels = NULL;
 
   data->data = (double *) malloc(mcin.ddata * mcin.Nd * sizeof(double));
   if(data->data == NULL)
-    fprintf(stderr, "ERROR: Data Memory allocation did not complete successfully!\n");
-  
-  data->gpudata = (double *) malloc(mcin.dmap * mcin.Nd * sizeof(double));
-  if(data->gpudata == NULL)
-    fprintf(stderr, "ERROR: GPU Data Memory allocation did not complete successfully!\n");  
+    fprintf(stderr, "ERROR: Data Memory allocation did not complete successfully!\n"); 
   
   data->labels = (int8_t *) malloc(mcin.Nd * sizeof(int8_t));  
   if(data->labels == NULL)
     fprintf(stderr, "ERROR: Labels Data Memory allocation did not complete successfully!\n");  
+  
+  data->gpudata = (double *) malloc(mcin.dmap * mcin.Ndmap * sizeof(double));
+  if(data->gpudata == NULL)
+    fprintf(stderr, "ERROR: GPU Data Memory allocation did not complete successfully!\n"); 
+
+  data->gpulabels = (double *) malloc(mcin.Ndmap * sizeof(int8_t));
+  if(data->gpulabels == NULL)
+    fprintf(stderr, "ERROR: GPU Labels Memory allocation did not complete successfully!\n"); 
 }
 
 void malloc_sample_vectors(mcmc_v_str *mcdata, mcmc_str mcin)
@@ -128,8 +133,9 @@ void free_data_vectors_cpu(data_str data)
 void free_data_vectors_gpu(data_str data)
 {
   free(data.data);
-  free(data.gpudata);
   free(data.labels);
+  free(data.gpudata);
+  free(data.gpulabels);
 }
 
 void free_sample_vectors(mcmc_v_str mcdata)

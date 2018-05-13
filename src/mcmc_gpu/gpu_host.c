@@ -23,18 +23,24 @@ int main(int argc, char * argv[])
   
   char rootdir[50];
 
-  read_inputs(argc, argv, &mcin, &mct, &sec);
+  read_inputs(argc, argv, &mcin, &sec);
   mcin.dmap = map_dimensions(mcin.ddata); // make dimensions power of 2
+  mcin.Ndmap = map_dimensions(mcin.Nd);
 
   init_rng(&r);
   malloc_data_vectors_gpu(&data, mcin);
   malloc_sample_vectors(&mcdata, mcin);
 
   read_data(data, mcin, sec);
-  map_gpu_data(data, mcin);
+  map_gpu_data(data, mcin);       /************ NEEDS FIXING **************/
 
-  memset(mcdata.burn, 0, mcin.ddata*sizeof(double));
-  Metropolis_Hastings_gpu(data, r, mcin, mct, mcdata, &results);
+  mct.rwsd = 2.38 / sqrt(mcin.ddata);
+
+  int i;
+  for(i=0; i<mcin.ddata; i++) mcdata.burn[i] = 0;
+
+  // Metropolis_Hastings_gpu(data, r, mcin, mct, mcdata, &results);
+  gpu_sampler(data, r, mcin, mct, mcdata, &results);
 
   if(sec.fdata == 1){
     strcpy(rootdir, "out/gpu/synthetic/");
