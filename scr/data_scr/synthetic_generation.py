@@ -21,10 +21,11 @@ if __name__ == "__main__":
     DIM = args.dim 
 
     data = np.zeros((DATASET, DIM+1))
-    # b = np.random.randint(-31, 31, DIM)
-    # path = "data/synthetic_betas.csv"
-    # np.savetxt(path, b, fmt = "%d", newline='\n', delimiter=",")
-    b = [-10, 5, 10]
+    b = np.random.randint(-15, 15, DIM)
+    b[0] = 1
+    path = "data/synthetic_betas.csv"
+    np.savetxt(path, b, fmt = "%d", newline='\n', delimiter=",")
+    # b = [-10, 5, 10]
 
     for j in range(1,DIM+1):
         for i in range(0,DATASET):

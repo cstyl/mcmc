@@ -3,20 +3,20 @@ import matplotlib.pyplot as plt
 import csv
 
 # plot the generated samples histogram
-filepath = '../../out/raw/synthetic_burn_out.csv'
+filepath = 'out/cpu/synthetic/burn_out.csv'
 # x,y,z = np.loadtxt('../../out/raw/synthetic_raw_out.csv', delimiter=',', unpack=True)
 x0=[]
 x1=[]
 x2=[]
 
-with open(filepath,'r') as csvfile:
-    plots = csv.reader(csvfile, delimiter=',')
-    for row in plots:
-        x0.append(float(row[0]))
-        x1.append(float(row[1]))
-        x2.append(float(row[2]))
+# with open(filepath,'r') as csvfile:
+#     plots = csv.reader(csvfile, delimiter=',')
+#     for row in plots:
+#         x0.append(float(row[0]))
+#         x1.append(float(row[1]))
+#         x2.append(float(row[2]))
 
-filepath = '../../out/raw/synthetic_raw_out.csv'
+filepath = 'out/cpu/synthetic/raw_out.csv'
 
 with open(filepath,'r') as csvfile:
     plots = csv.reader(csvfile, delimiter=',')

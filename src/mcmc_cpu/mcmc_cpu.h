@@ -2,17 +2,34 @@
 #define __MCMC_CPU_H__
 
 #include "resources.h"
+#include "alloc_util.h"
+#include "processing_util.h"
 
-double log_likelihood(double *sample, double *x, double *y,
-                      int data_dim, int datapoints);
-double log_prior(double *sample, int data_dim);
-double acceptance_ratio(double *sample, double *x, double *y, 
-                        int data_dim, int datapoints);
+void cpu_sampler(data_str data, gsl_rng *r, mcmc_str mcin,
+                  mcmc_tune_str mct, mcmc_v_str mcdata,
+                  out_str *out_par);
 
-void Metropolis_Hastings_cpu(double *x, double *y, gsl_rng *r,
-                            in_struct in_par, out_struct *out_par, 
-                            double rw_sd, double *samples_m, double *burn_m);
+void metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
+                    mcmc_tune_str mct, mcmc_v_str mcdata,
+                    mcmc_int_v mclocv, mcmc_int *mcloc, int *accepted_samples);
+void burn_in_metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
+                            mcmc_tune_str mct, mcmc_v_str mcdata,
+                            mcmc_int_v mclocv, mcmc_int *mcloc);
 
-double current_posterior, proposed_posterior;
+void tune_target_a_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
+                        mcmc_tune_str *mct);
+void tune_target_a_cpu_v2(data_str data, gsl_rng *r, mcmc_str mcin,
+                        mcmc_tune_str *mct);
+void tune_ess_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
+                    mcmc_tune_str *mct);
 
+void short_run_burn_in(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, 
+                        double sd, mcmc_int *mcloc);
+void short_run_metropolis(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, 
+                          int chain_length, double sd, 
+                          mcmc_int *mcloc, double *samples, int *accepted_samples);
+
+double acceptance_ratio(mcmc_int_v mclocv, mcmc_int *mcloc, data_str data, mcmc_str mcin); 
+double log_prior(double *sample, mcmc_str mcin);
+double log_likelihood(double *sample, data_str data, mcmc_str mcin);
 #endif  //__MCMC_CPU_H__
