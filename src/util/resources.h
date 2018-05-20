@@ -13,12 +13,20 @@
 #include <gsl/gsl_randist.h>  // to obtain various pdf 
 #include <gsl/gsl_cblas.h> // to perform dot products and vector operations
 
+#if defined (__cplusplus)
+extern "C" {
+#endif
+
+enum dataread{
+  RowMajor,
+  ColMajor
+};
+
 typedef struct data_vectors
 {
   double *data;
   int8_t *labels;
-  double *gpudata;
-  int8_t *gpulabels;
+  double *mvout;
 } data_str;
 
 typedef struct mcmc_vectors
@@ -34,10 +42,10 @@ typedef struct mcmc_vars
 {
   int ddata;         // actual dimensionality of datapoints
   int Nd;             // number of data points
+  int Ndmap;
   int Ns;             // number of samples generated
-  int dmap;       // make dimensionality of datapoints even
-  int Ndmap;        // to accomodate datapoint number power of 2
   int burnin;        // number of samples burned
+  int tune;       // 0=no tuning, 1=tune for target acceptance, 2=tune for max ess
 } mcmc_str;
 
 typedef struct tuning_par
@@ -59,13 +67,31 @@ typedef struct mcmc_internal
   double u;
 } mcmc_int;
 
+typedef struct device_vectors
+{
+  double *samples;
+  double *data;
+  double *cuLhood;
+  double *lhood;
+} dev_v_str;
+
+typedef struct gpu_parameters
+{
+  int size;       // total elements to run
+  int threads;    // max threads/block
+  int blocks;     // number of blocks
+  int maxThreads; // threads per block
+  int maxBlocks;
+  int kernel;     // choose kernel number
+  int cpuThresh;  // current iteration
+} gpu_v_str;
+
 typedef struct sizes_struct
 {
-  size_t samples_map;
-  size_t samples_actual;
+  size_t samples;
   size_t data;
-  size_t labels;
-  size_t likelihood;
+  size_t cuLhood;
+  size_t lhood;
 } sz_str;
 
 typedef struct secondary_vectors
@@ -77,22 +103,31 @@ typedef struct secondary_vectors
 typedef struct secondary_vars
 {
   int fdata;
-  int fauto;
-  int fout;
-  int fautoout;
   int lagidx;
-  int fnorm;
+  int first;
 } sec_str;
 
-typedef struct output_vars
+typedef struct outputs
 {
-  double acc_ratio;
-  int time_m;
-  int time_s;
-  int time_ms;
-  double ess_shift;
-  double ess_circular;
-  double ess;
+  float cuTime, cuBandwidth;
+  float kernelTime, kernelBandwidth;
+  float gpuTime, gpuBandwidth;
+  float cpuTime;
+
+  float tuneTime;
+  float burnTime;
+  float mcmcTime;
+  float samplerTime;
+  
+  int Nd, dim, kernel, blocksz;
+  float sd, acceptance, ess;
+  int samples, burnSamples;
+  int device;
+
 } out_str;
+
+#if defined (__cplusplus)
+}
+#endif
 
 #endif  //__RESOURCES_H__

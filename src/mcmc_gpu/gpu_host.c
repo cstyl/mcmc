@@ -5,7 +5,6 @@
  * The sequence can be used to approximate the distribution (eg histogram) 
  * or compute an integral (eg expected value)
  */
-
 #include "gpu_host.h"
 
 int main(int argc, char * argv[])
@@ -17,39 +16,55 @@ int main(int argc, char * argv[])
   mcmc_v_str mcdata;
 
   sec_str sec;
-  out_str results;
+  sec_v_str secv;
+  
+  gpu_v_str gpu;
+  out_str res;
 
   gsl_rng *r = NULL;
   
-  char rootdir[50];
+  char indir[50], outdir[50];
+  clock_t start, stop; 
 
-  read_inputs(argc, argv, &mcin, &sec);
-  mcin.dmap = map_dimensions(mcin.ddata); // make dimensions power of 2
-  mcin.Ndmap = map_dimensions(mcin.Nd);
-
-  init_rng(&r);
-  malloc_data_vectors_gpu(&data, mcin);
-  malloc_sample_vectors(&mcdata, mcin);
-
-  read_data(data, mcin, sec);
-  map_gpu_data(data, mcin);       /************ NEEDS FIXING **************/
-
-  mct.rwsd = 2.38 / sqrt(mcin.ddata);
-
-  int i;
-  for(i=0; i<mcin.ddata; i++) mcdata.burn[i] = 0;
-
-  // Metropolis_Hastings_gpu(data, r, mcin, mct, mcdata, &results);
-  gpu_sampler(data, r, mcin, mct, mcdata, &results);
+  read_inputs_gpu(argc, argv, &mcin, &sec, &gpu);
 
   if(sec.fdata == 1){
-    strcpy(rootdir, "out/gpu/synthetic/");
+    strcpy(indir, "data/host/synthetic.csv");
+    strcpy(outdir, "out/host/synthetic/gpu_");
   }else if(sec.fdata == 2){
-    strcpy(rootdir, "out/gpu/mnist/");
+    strcpy(indir, "data/host/mnist.csv");
+    strcpy(outdir, "out/host/mnist/gpu_");
   }
-  write_outputs(rootdir, mcdata, mcin, sec, results);
 
-  free_data_vectors_gpu(data);
+  malloc_data_vectors(&data, mcin);
+  malloc_sample_vectors(&mcdata, mcin);
+  malloc_autocorrelation_vectors(&secv, sec);
+
+  init_rng(&r);
+
+  read_data(indir, ColMajor, data, mcin);
+  
+  mct.rwsd = 2.38 / sqrt(mcin.ddata);
+  
+  int i;
+  for(i=0; i<mcin.ddata; i++){ mcdata.burn[i] = 0; } 
+
+  start  = clock();
+  gpu_sampler(data, r, mcin, &mct, mcdata, gpu, &res);
+  stop = clock() - start;
+
+  res.samplerTime = stop * 1000 / CLOCKS_PER_SEC;  // sampler time in ms
+  res.ess = get_ess(mcdata.samples, mcin.Ns, mcin.ddata, sec.lagidx, secv.circ);
+  
+  write_bandwidth_test_out(res);
+
+  calculate_normalised_sample_means(mcdata, mcin);
+  print_normalised_sample_means(mcdata, mcin);
+  
+  write_csv_outputs(outdir, mcdata, mcin, sec, secv);
+
+  free_autocorrelation_vectors(secv);
+  free_data_vectors(data);
   free_sample_vectors(mcdata);
   free_rng(r);
 

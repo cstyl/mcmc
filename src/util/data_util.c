@@ -1,33 +1,32 @@
-// #include "cpu_host.h"
-// #include "gpu_host.h"
 #include "data_util.h"
 
-// import data from csv
-void read_data(data_str data, mcmc_str mcin, sec_str sec)
+void read_data(char* dir, int store, data_str data, mcmc_str mcin)
 {
   CsvParser *csvparser = NULL;
-  if(sec.fdata == 1)
-    csvparser = CsvParser_new("data/synthetic.csv", ",", 0);
-  else if(sec.fdata == 2)
-    // csvparser = CsvParser_new("data/mnist_pca_7_9.csv", ",", 0);
-    csvparser = CsvParser_new("data/norm_mnist_pca_7_9.csv", ",", 0);
+
+  csvparser = CsvParser_new(dir, ",", 0);
 
   CsvRow *row;
 
   int datapoint=0;
   int i;
+  int8_t label = 1;
   fprintf(stdout, "Importing data. ");
   while ((row = CsvParser_getRow(csvparser)) && (datapoint<mcin.Nd)) {
     char **rowFields = CsvParser_getFields(row);
     for (i = 0 ; i < CsvParser_getNumFields(row) ; i++) {
       if(i == 0){
         if(atof(rowFields[i]) > 0){
-          data.labels[datapoint] = 1;
+          label = 1;
         }else{
-          data.labels[datapoint] = -1;
+          label = -1;
         }  
       }else if(i <= mcin.ddata){
-        data.data[datapoint*mcin.ddata+(i-1)] = atof(rowFields[i]);
+        if(store==RowMajor){
+          data.data[datapoint*mcin.ddata+(i-1)] = -label * atof(rowFields[i]);
+        }else if(store==ColMajor){
+          data.data[(i-1)*mcin.Nd+datapoint] = -label * atof(rowFields[i]);
+        }
       }
     }
 
@@ -72,15 +71,38 @@ void output_autocorrelation_files(char* dir, sec_v_str secv, sec_str sec)
 {
   char filename[50];
 
-  if((sec.fauto == 1) || (sec.fauto == 3)){
-    strcat(strcpy(filename,dir), "shift_autocorrelation");
-    write_autocorr(filename, secv.shift, sec);
+  // strcat(strcpy(filename,dir), "shift_autocorrelation");
+  // write_autocorr(filename, secv.shift, sec);
+
+  strcat(strcpy(filename,dir), "circular_autocorrelation");
+  write_autocorr(filename, secv.circ, sec);
+}
+
+void write_performance_data(char *filename, out_str res, bool first)
+{
+  fprintf(stdout, "Opening %s.csv file. ",filename);
+  FILE *fp;
+   
+  filename=strcat(filename,".csv");
+   
+  fp=fopen(filename,"a");
+
+  if(first){  // create the header of the csv
+    fprintf(fp, "Nd, dim, samples, burnSamples, sd, device, samplerTime, mcmcTime, tuneTime, burnTime, ");
+    fprintf(fp, "cpuTime, kernel, blocksz, gpuTime, cuTime, kernelTime, ");
+    fprintf(fp, "gpuBandwidth, cuBandwidth, kernelBandwidth, acceptance, ess\n");
+  }else{
+    fprintf(fp, "%d, %d, %d, %d, %f, %d, %f, %f, %f, %f, ", res.Nd, res.dim, res.samples, res.burnSamples, 
+            res.sd, res.device, res.samplerTime, res.mcmcTime, res.tuneTime, res.burnTime);
+    fprintf(fp, "%f, %d, %d, %f, %f, %f, ", res.cpuTime, res.kernel, res.blocksz,
+            res.gpuTime, res.cuTime, res.kernelTime);
+    fprintf(fp, "%f, %f, %f, %f, %f\n", res.gpuBandwidth, res.cuBandwidth, res.kernelBandwidth,
+            res.acceptance, res.ess);
   }
 
-  if((sec.fauto == 2) || (sec.fauto == 3)){
-      strcat(strcpy(filename,dir), "circular_autocorrelation");
-      write_autocorr(filename, secv.circ, sec);
-  }
+
+  fclose(fp);
+  fprintf(stdout, "File appended.\n");
 }
 
 /* Write the output parameters in a csv file */
@@ -108,6 +130,31 @@ void write_data(char *filename, double *data, int sz, int dim)
   fclose(fp);
   fprintf(stdout, "File created\n");
 }
+
+// void write_performance_gpu(char *filename, out_str res)
+// {
+//   fprintf(stdout, "Creating %s.csv file. ",filename);
+   
+//   FILE *fp;
+   
+//   filename=strcat(filename,".csv");
+   
+//   fp=fopen(filename,"w+");
+
+//   int i,j;
+//   for(i=0;i<sz;i++){
+//     for(j=0;j<dim;j++)
+//     {
+//       if(j<dim-1)
+//         fprintf(fp, "%f, ", data[i*dim+j]);
+//       else
+//         fprintf(fp, "%f\n", data[i*dim+j]);
+//     }
+//   }
+
+//   fclose(fp);
+//   fprintf(stdout, "File created\n");
+// }
 
 /* Write the output parameters in a csv file */
 void write_autocorr(char *filename, double *autocorrelation, sec_str sec)

@@ -5,7 +5,6 @@
  * The sequence can be used to approximate the distribution (eg histogram) 
  * or compute an integral (eg expected value)
  */
-
 #include "cpu_host.h"
 
 int main(int argc, char * argv[])
@@ -17,37 +16,53 @@ int main(int argc, char * argv[])
   mcmc_v_str mcdata;
 
   sec_str sec;
-  out_str results;
+  sec_v_str secv;
+  out_str res;
 
   gsl_rng *r = NULL;
   
-  char rootdir[50];
+  char indir[50], outdir[50];
+  clock_t start, stop;
+
+  init_rng(&r);
 
   read_inputs(argc, argv, &mcin, &sec);
 
-  init_rng(&r);
-  malloc_data_vectors_cpu(&data, mcin);
+  if(sec.fdata == 1){
+    strcpy(indir, "data/host/synthetic.csv");
+    strcpy(outdir, "out/host/synthetic/cpu_");
+  }else if(sec.fdata == 2){
+    strcpy(indir, "data/host/mnist.csv");
+    strcpy(outdir, "out/host/mnist/cpu_");
+  }
+
+  malloc_data_vectors(&data, mcin);
   malloc_sample_vectors(&mcdata, mcin);
+  malloc_autocorrelation_vectors(&secv, sec);
   
-  read_data(data, mcin, sec);
-  
+  read_data(indir, ColMajor, data, mcin);
+
   mct.rwsd = 2.38 / sqrt(mcin.ddata);
 
   int i;
   for(i=0; i<mcin.ddata; i++) mcdata.burn[i] = 0;
+  
+  start  = clock();
+  cpu_sampler(data, r, mcin, &mct, mcdata, &res);
+  stop = clock() - start;
 
-  // Metropolis_Hastings_cpu(data, r, mcin, mct, mcdata, &results);
-  cpu_sampler(data, r, mcin, mct, mcdata, &results);
+  res.samplerTime = stop * 1000 / CLOCKS_PER_SEC;  // sampler time in ms
+  res.ess = get_ess(mcdata.samples, mcin.Ns, mcin.ddata, sec.lagidx, secv.circ);
 
+  write_bandwidth_test_out(res);
 
-  if(sec.fdata == 1){
-    strcpy(rootdir, "out/cpu/synthetic/");
-  }else if(sec.fdata == 2){
-    strcpy(rootdir, "out/cpu/mnist/");
-  }
-  write_outputs(rootdir, mcdata, mcin, sec, results);
+  calculate_normalised_sample_means(mcdata, mcin);
+  print_normalised_sample_means(mcdata, mcin);
+  
+  write_csv_outputs(outdir, mcdata, mcin, sec, secv);
 
-  free_data_vectors_cpu(data);
+  free_autocorrelation_vectors(secv);
+  free_data_vectors(data);
   free_sample_vectors(mcdata);
   free_rng(r);
 

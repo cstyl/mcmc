@@ -6,50 +6,61 @@
 
 const int PRIOR_SD = 5;
 
-void cpu_sampler(data_str data, gsl_rng *r, mcmc_str mcin,
-                  mcmc_tune_str mct, mcmc_v_str mcdata,
-                  out_str *out_par)
+void cpu_sampler(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct, 
+                  mcmc_v_str mcdata, out_str *res)
 {
   mcmc_int_v mclocv;
   mcmc_int mcloc;
-  malloc_mcmc_vectors_cpu(&mclocv, mcin);
+  malloc_mcmc_vectors(&mclocv, mcin);
   
-  int accepted_samples = 0;
-  clock_t start, stop;
+  int accepted_samples;
+  clock_t startTune, stopTune;
+  clock_t startBurn, stopBurn;
+  clock_t startMcmc, stopMcmc;
 
-  // tune_target_a_cpu(data, r, mcin, &mct);
-  tune_target_a_cpu_v2(data, r, mcin, &mct);
-  // tune_ess_cpu(data, r, mcin, &mct);
+  startTune = clock();
+  if(mcin.tune == 1)
+    tune_target_a_cpu_v2(data, r, mcin, mct);
+  else if(mcin.tune == 2)  
+    tune_ess_cpu(data, r, mcin, mct);    
+  stopTune = clock() - startTune;
 
+  startBurn = clock();
   burn_in_metropolis_cpu(data, r, mcin, mct, mcdata, mclocv, &mcloc);
-  
-  start  = clock();
-  metropolis_cpu(data, r, mcin, mct, mcdata, mclocv, &mcloc, &accepted_samples);
-  stop = clock() - start;
-  
-  out_par->time_m = stop / (CLOCKS_PER_SEC * 60);
-  out_par->time_s = (stop / CLOCKS_PER_SEC) - (out_par->time_m * 60);
-  out_par->time_ms = (stop * 1000 / CLOCKS_PER_SEC) - (out_par->time_s * 1000) 
-                      - (out_par->time_m * 1000 * 60);
-  out_par->acc_ratio = (double)accepted_samples / mcin.Ns;
+  stopBurn = clock() - startBurn;
 
-  free_mcmc_vectors_cpu(mclocv);
+  accepted_samples = 0;
+   
+  startMcmc = clock();
+  metropolis_cpu(data, r, mcin, mct, mcdata, mclocv, &mcloc, &accepted_samples, res);
+  stopMcmc = clock() - startMcmc;
+
+  res->tuneTime = stopTune * 1000 / CLOCKS_PER_SEC;   // tuning time in ms
+  res->burnTime = stopBurn * 1000 / CLOCKS_PER_SEC;   // burn in time in ms
+  res->mcmcTime = stopMcmc * 1000 / CLOCKS_PER_SEC;   // mcmc time in ms
+  res->acceptance = (double)accepted_samples / mcin.Ns;
+
+  free_mcmc_vectors(mclocv);
 }
 
-void metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
-                    mcmc_tune_str mct, mcmc_v_str mcdata,
-                    mcmc_int_v mclocv, mcmc_int *mcloc, int *accepted_samples)
+void metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct, mcmc_v_str mcdata,
+                    mcmc_int_v mclocv, mcmc_int *mcloc, int *accepted_samples, out_str *res)
 {
   int i, dim_idx;
-  fprintf(stdout, "Starting metropolis algorithm. Selected rwsd = %f\n", mct.rwsd); 
-  
+  double plhood;
+  res->cpuTime = 0;
+
+  fprintf(stdout, "Starting metropolis algorithm. Selected rwsd = %f\n", mct->rwsd); 
+
   for(i=0; i<mcin.Ns; i++)
   {
     // propose next sample
     for(dim_idx=0; dim_idx<mcin.ddata; dim_idx++)
-      mclocv.proposed[dim_idx] = mclocv.current[dim_idx] + gsl_ran_gaussian_ziggurat(r, mct.rwsd); // random walk using Marsaglia-Tsang ziggurat algorithm
+      mclocv.proposed[dim_idx] = mclocv.current[dim_idx] + gsl_ran_gaussian_ziggurat(r, mct->rwsd); // random walk using Marsaglia-Tsang ziggurat algorithm
     
-    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, data, mcin);
+    plhood = log_likelihood(mclocv.proposed, data, mcin, res);
+
+    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, mcin, plhood);
     mcloc->u = gsl_rng_uniform(r);
 
     if(mcloc->u <= mcloc->acceptance)
@@ -70,28 +81,33 @@ void metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
   fprintf(stdout, "Metropolis algorithm finished. Accepted Samples = %d\n\n", *accepted_samples);
 }
 
-void burn_in_metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
-                            mcmc_tune_str mct, mcmc_v_str mcdata,
+void burn_in_metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct, mcmc_v_str mcdata,
                             mcmc_int_v mclocv, mcmc_int *mcloc)
 {
   int i, dim_idx;
-  fprintf(stdout, "Starting burn in process. Selected rwsd = %f\n", mct.rwsd);
+  double clhood, plhood;
+  out_str res;
+
+  fprintf(stdout, "Starting burn in process. Selected rwsd = %f\n", mct->rwsd);
 
   // initialize burn in sequence
   for(dim_idx=0; dim_idx<mcin.ddata; dim_idx++)
     mclocv.current[dim_idx] = mcdata.burn[dim_idx];
 
+  clhood = log_likelihood(mclocv.current, data, mcin, &res);
   // calculate the current posterior
-  mcloc->cposterior = log_prior(mclocv.current, mcin) + log_likelihood(mclocv.current, data, mcin);
+  mcloc->cposterior = log_prior(mclocv.current, mcin) + clhood;
 
   // start burn in
   for(i=1; i<mcin.burnin; i++)
   {
     // propose next sample
     for(dim_idx=0; dim_idx<mcin.ddata; dim_idx++)
-      mclocv.proposed[dim_idx] = mclocv.current[dim_idx] + gsl_ran_gaussian_ziggurat(r, mct.rwsd); // random walk using Marsaglia-Tsang ziggurat algorithm
+      mclocv.proposed[dim_idx] = mclocv.current[dim_idx] + gsl_ran_gaussian_ziggurat(r, mct->rwsd); // random walk using Marsaglia-Tsang ziggurat algorithm
     
-    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, data, mcin);
+    plhood = log_likelihood(mclocv.proposed, data, mcin, &res);   
+
+    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, mcin, plhood);
     mcloc->u = gsl_rng_uniform(r);
 
     if(mcloc->u <= mcloc->acceptance)
@@ -111,12 +127,11 @@ void burn_in_metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
 }
 
 // tune rwsd for a target acceptance ratio
-void tune_ess_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
-                    mcmc_tune_str *mct)
+void tune_ess_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct)
 {
   mcmc_int_v mclocv;
   mcmc_int mcloc;
-  malloc_mcmc_vectors_cpu(&mclocv, mcin);
+  malloc_mcmc_vectors(&mclocv, mcin);
 
   int chain_length = 5000;
   int runs = 40;
@@ -127,10 +142,11 @@ void tune_ess_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
   double lagidx = 500;
 
   double sd = mct->rwsd;
+  double ess_sd = sd;
 
   int accepted_samples, run, a_idx;
   double acc_ratio_c, acc_error_c, best_acc_ratio;
-  double circ_sum, best_sd, ess_sd, ess_c;
+  double circ_sum, best_sd, ess_c;
 
   double *samples = NULL;
   samples = (double*) malloc(mcin.ddata * chain_length * sizeof(double));
@@ -193,17 +209,16 @@ void tune_ess_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
   
   free(samples);
   free(autocorr_lagk);
-  free_mcmc_vectors_cpu(mclocv);
+  free_mcmc_vectors(mclocv);
 }
 
 
 // tune rwsd for a target acceptance ratio
-void tune_target_a_cpu_v2(data_str data, gsl_rng *r, mcmc_str mcin,
-                        mcmc_tune_str *mct)
+void tune_target_a_cpu_v2(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct)
 {
   mcmc_int_v mclocv;
   mcmc_int mcloc;
-  malloc_mcmc_vectors_cpu(&mclocv, mcin);
+  malloc_mcmc_vectors(&mclocv, mcin);
 
   int chain_length = 5000;
   int runs = 40;
@@ -212,9 +227,10 @@ void tune_target_a_cpu_v2(data_str data, gsl_rng *r, mcmc_str mcin,
   double min_error = 9999999;
 
   double sd = mct->rwsd;
+  double best_sd = sd;
 
   int accepted_samples, run;
-  double acc_ratio_c, acc_error_c, best_acc_ratio, best_sd;
+  double acc_ratio_c, acc_error_c, best_acc_ratio;
 
   double *samples = NULL;
   samples = (double*) malloc(mcin.ddata * chain_length * sizeof(double));
@@ -256,16 +272,15 @@ void tune_target_a_cpu_v2(data_str data, gsl_rng *r, mcmc_str mcin,
   fprintf(stdout, "Tuning finished. Selected rwsd = %5.3f\n\n", mct->rwsd);
   
   free(samples);
-  free_mcmc_vectors_cpu(mclocv);
+  free_mcmc_vectors(mclocv);
 }
 
 // tune rwsd for a target acceptance ratio
-void tune_target_a_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
-                        mcmc_tune_str *mct)
+void tune_target_a_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct)
 {
   mcmc_int_v mclocv;
   mcmc_int mcloc;
-  malloc_mcmc_vectors_cpu(&mclocv, mcin);
+  malloc_mcmc_vectors(&mclocv, mcin);
 
   int chain_length = 5000;
   int run = 0;
@@ -310,19 +325,22 @@ void tune_target_a_cpu(data_str data, gsl_rng *r, mcmc_str mcin,
   fprintf(stdout, "Tuning finished. Selected rwsd = %5.3f\n\n", mct->rwsd);
   
   free(samples);
-  free_mcmc_vectors_cpu(mclocv);
+  free_mcmc_vectors(mclocv);
 }
 
-void short_run_burn_in(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, 
-                        double sd, mcmc_int *mcloc)
+void short_run_burn_in(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, double sd, mcmc_int *mcloc)
 {
   int i, dim_idx;
+  double clhood, plhood;
+  out_str res;
+
   // initialize burn in sequence
   for(dim_idx=0; dim_idx<mcin.ddata; dim_idx++)
     mclocv.current[dim_idx] = 0;
   
-  mcloc->cposterior = log_prior(mclocv.current, mcin) 
-                      + log_likelihood(mclocv.current, data, mcin);
+  clhood = log_likelihood(mclocv.current, data, mcin, &res);
+  mcloc->cposterior = log_prior(mclocv.current, mcin) + clhood;
+
   // start burn-in
   for(i=1; i<mcin.burnin; i++)
   {
@@ -331,8 +349,11 @@ void short_run_burn_in(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mc
                                   + gsl_ran_gaussian_ziggurat(r, sd); // random walk using Marsaglia-Tsang ziggurat algorithm  
     }
 
-    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, data, mcin);   // Calculate acceptance ratio in the log domain
+    plhood = log_likelihood(mclocv.proposed, data, mcin, &res);
+
+    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, mcin, plhood);   // Calculate acceptance ratio in the log domain
     mcloc->u = gsl_rng_uniform(r);
+
     if(mcloc->u <= mcloc->acceptance)    // decide if you accept the proposed theta or not
     {
       for(dim_idx=0; dim_idx<mcin.ddata; dim_idx++){
@@ -343,11 +364,12 @@ void short_run_burn_in(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mc
   }
 }
 
-void short_run_metropolis(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, 
-                          int chain_length, double sd, 
-                          mcmc_int *mcloc, double *samples, int *accepted_samples)
+void short_run_metropolis(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, int chain_length, 
+                          double sd, mcmc_int *mcloc, double *samples, int *accepted_samples)
 {
   int i, dim_idx;
+  double plhood;
+  out_str res;
 
   // start metropolis
   for(i=0; i < chain_length; i++){    
@@ -356,7 +378,9 @@ void short_run_metropolis(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str
                                   + gsl_ran_gaussian_ziggurat(r, sd); // random walk using Marsaglia-Tsang ziggurat algorithm    
     }
 
-    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, data, mcin);   // Calculate acceptance ratio in the log domain
+    plhood = log_likelihood(mclocv.proposed, data, mcin, &res);
+
+    mcloc->acceptance = acceptance_ratio(mclocv, mcloc, mcin, plhood);  // Calculate acceptance ratio in the log domain
     mcloc->u = gsl_rng_uniform(r);
 
     if(mcloc->u <= mcloc->acceptance)    // decide if you accept the proposed theta or not
@@ -375,10 +399,11 @@ void short_run_metropolis(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str
   }
 }
 
-double acceptance_ratio(mcmc_int_v mclocv, mcmc_int *mcloc, data_str data, mcmc_str mcin) 
+double acceptance_ratio(mcmc_int_v mclocv, mcmc_int *mcloc, mcmc_str mcin, double lhood) 
 {
   double log_ratio;
-  mcloc->pposterior = log_prior(mclocv.proposed, mcin) + log_likelihood(mclocv.proposed, data, mcin);
+
+  mcloc->pposterior = log_prior(mclocv.proposed, mcin) + lhood;
   log_ratio = mcloc->pposterior - mcloc->cposterior;
 
   return exp(log_ratio);
@@ -396,14 +421,41 @@ double log_prior(double *sample, mcmc_str mcin)
   return log_prob;
 }
 
-/* Calculate log-likelihood for each data-point and accumulate the contributions */
-double log_likelihood(double *sample, data_str data, mcmc_str mcin)
+double log_likelihood(double *sample, data_str data, mcmc_str mcin, out_str *res)
 {
   double log_lik = 0;
   int idx;
-  
+  double alpha, beta;
+  int m, n, lda, incx, incy;
+  clock_t startLikelihood, stopLikelihood;
+
+  n = mcin.ddata;
+  m = mcin.Nd;
+  lda = mcin.Nd;
+  incx = 1;
+  incy = 1;
+  alpha = 1;
+  beta = 0;
+
+  startLikelihood = clock();
+  cblas_dgemv(CblasColMajor, CblasNoTrans, m, n, alpha, data.data, lda, 
+              sample, incx, beta, data.mvout, incy);
+
   for(idx=0; idx<mcin.Nd; idx++){
-    log_lik -= log(1+exp(-data.labels[idx] * cblas_ddot(mcin.ddata,&data.data[idx * mcin.ddata],1,sample,1)));
+    log_lik -= log(1+exp(data.mvout[idx]));
   }
+  stopLikelihood = startLikelihood - clock();
+  res->cpuTime += (stopLikelihood * 1000 / CLOCKS_PER_SEC) / mcin.Ns;
   return log_lik;
 }
+
+// double log_likelihood(double *sample, data_str data, mcmc_str mcin, out_str *res)
+// {
+//   double log_lik = 0;
+//   int idx;
+  
+//   for(idx=0; idx<mcin.Nd; idx++){
+//     log_lik -= log(1+exp(cblas_ddot(mcin.ddata,&data.data[idx * mcin.ddata],1,sample,1)));
+//   }
+//   return log_lik;
+// }

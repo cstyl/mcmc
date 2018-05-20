@@ -6,4 +6,14 @@
 
 #include "mcmc_cpu.h"
 
+
+#if defined (__cplusplus)
+extern "C" {
+#endif
+
+
+#if defined (__cplusplus)
+}
+#endif
+
 #endif  //__CPU_HOST_H__

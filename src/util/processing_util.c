@@ -1,9 +1,7 @@
-// #include "cpu_host.h"
-// #include "gpu_host.h"
 #include "processing_util.h"
 
 void normalise_samples(double *raw_in, double *norm_out,
-                      int data_dim, int sz, double bias_mu)
+                      int data_dim, int sz)
 {
   int samp_idx, dim_idx, idx;
   // double bias_mu = get_bias_mean(raw_in, data_dim, sz);
@@ -11,7 +9,7 @@ void normalise_samples(double *raw_in, double *norm_out,
   for(samp_idx=0; samp_idx<sz; samp_idx++){
     for(dim_idx=0; dim_idx<data_dim; dim_idx++){
       idx = samp_idx*data_dim+dim_idx;
-      norm_out[idx] = raw_in[idx] / bias_mu;
+      norm_out[idx] = raw_in[idx] / raw_in[samp_idx*data_dim];
     }
   }
 }
@@ -176,58 +174,25 @@ void get_variance(int data_dim, int samples,
   }
 }
 
-void map_gpu_data(data_str data, mcmc_str mcin)
+double get_ess(double *samples, int sample_sz, int sample_dim, int max_lag, double *autocorrelation_v)
 {
-  int i,j;
+  double autocorrelation_sum, ess;
 
-  if(mcin.ddata == mcin.dmap){
-    for(i=0; i<mcin.Nd; i++){
-      for(j=0; j<mcin.ddata; j++){
-        data.gpudata[i * mcin.dmap + j] = data.data[i * mcin.dmap + j];
-      }
-    }    
-  }else{ // pad with zeros
-    for(i=0; i<mcin.Nd; i++){
-      for(j=0; j<mcin.ddata; j++){
-        data.gpudata[i * mcin.dmap + j] = data.data[i * mcin.dmap + j];
-      }
-      for(j=mcin.ddata; j<mcin.dmap; j++)
-      {
-        data.gpudata[i * mcin.dmap + j] = 0;
-      }
-    }
-  }
+  autocorrelation_sum = circular_autocorrelation(autocorrelation_v, samples, sample_dim, sample_sz, max_lag);
+
+  ess =  sample_sz / (1 + 2 * autocorrelation_sum);
+
+  return ess;
 }
 
-// make dimensionality of data power of 2
-int map_dimensions(int d_data){
-  int ctr = 0;
-
-  while(d_data!=0){
-    d_data = d_data/2;
-    ctr++;
+void calculate_normalised_sample_means(mcmc_v_str mcdata, mcmc_str mcin)
+{
+  // normalise samples for bias = 1
+  normalise_samples(mcdata.burn, mcdata.nburn, mcin.ddata, mcin.burnin); 
+  normalise_samples(mcdata.samples, mcdata.nsamples, mcin.ddata, mcin.Ns);
+  //get normalised mean for each dimension
+  int current_idx;
+  for(current_idx = 0; current_idx < mcin.ddata; current_idx++){
+    mcdata.sample_means[current_idx] = get_dim_mean(mcdata.nsamples, mcin.ddata, current_idx, mcin.Ns);
   }
-
-  return pow(2,ctr-1);
 }
-
-// void map_gpu_data()
-// {
-//   int warp_sz = 32;
-//   int total_threads; // multiple of 32
-
-//   total_threads = ceil(Nd * gpu_d_data / warp_sz) * warp_sz; // make number of threads multiple of 32
-//   block_number = (total_threads + threads_per_block - 1) / threads_per_block;  // number of blocks
-
-//   int i,j;
-//   // copy data and zero-pad new dimension (if any)
-//   for(i=0; i<Nd; i++){
-//     for(j=0; j<gpu_d_data; j++){
-//       gpu_x[i*gpu_d_data+j] = x[i*gpu_d_data+j];
-//       if(j>d_data-1){
-//         // zero pad
-//         gpu_x[i*gpu_d_data+j] = 0;
-//       }
-//     }
-//   }
-// }
