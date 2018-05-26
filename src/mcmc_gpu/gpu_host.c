@@ -5,6 +5,9 @@
  * The sequence can be used to approximate the distribution (eg histogram) 
  * or compute an integral (eg expected value)
  */
+#ifndef __GPU_HOST_C__
+#define __GPU_HOST_C__
+
 #include "gpu_host.h"
 
 int main(int argc, char * argv[])
@@ -27,6 +30,7 @@ int main(int argc, char * argv[])
   clock_t start, stop; 
 
   read_inputs_gpu(argc, argv, &mcin, &sec, &gpu);
+  mcin.impl = GPU;
 
   if(sec.fdata == 1){
     strcpy(indir, "data/host/synthetic.csv");
@@ -64,9 +68,11 @@ int main(int argc, char * argv[])
   write_csv_outputs(outdir, mcdata, mcin, sec, secv);
 
   free_autocorrelation_vectors(secv);
-  free_data_vectors(data);
+  free_data_vectors(data, mcin);
   free_sample_vectors(mcdata);
   free_rng(r);
 
   return 0;
 }
+
+#endif // __GPU_HOST_C__

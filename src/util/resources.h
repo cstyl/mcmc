@@ -22,11 +22,21 @@ enum dataread{
   ColMajor
 };
 
+enum implementation{
+  CPU,
+  GPU,
+  MP,
+  CA
+};
+
 typedef struct data_vectors
 {
   double *data;
+  float  *dataf;
   int8_t *labels;
   double *mvout;
+  int8_t *zlabels;
+  int    *zidx;
 } data_str;
 
 typedef struct mcmc_vectors
@@ -46,6 +56,12 @@ typedef struct mcmc_vars
   int Ns;             // number of samples generated
   int burnin;        // number of samples burned
   int tune;       // 0=no tuning, 1=tune for target acceptance, 2=tune for max ess
+  int impl;     //0=CPU, 1=GPU, 2=MP, 3=CA
+
+  int bright;
+  int dark;
+  int cand;
+  int tdark;
 } mcmc_str;
 
 typedef struct tuning_par
@@ -57,6 +73,8 @@ typedef struct mcmc_internal_vectors
 {
   double *proposed;
   double *current;
+  float  *proposedf;
+  float  *currentf;
 } mcmc_int_v;
 
 typedef struct mcmc_internal
@@ -73,6 +91,16 @@ typedef struct device_vectors
   double *data;
   double *cuLhood;
   double *lhood;
+  // specific to mp imlpementation
+  float  *cuLhoodf;
+  float  *samplesf;
+  float  *dataf;
+  int8_t *zlabels;
+  int    *zidx;
+  double *brightLhood;
+  float  *darkLhood;
+  double *resample;
+  double *dLhood; // temp buffer
 } dev_v_str;
 
 typedef struct gpu_parameters
@@ -91,7 +119,18 @@ typedef struct sizes_struct
   size_t samples;
   size_t data;
   size_t cuLhood;
+  size_t cuLhoodf;
   size_t lhood;
+
+  size_t samplesf;
+  size_t dataf;
+  size_t zlabels;
+  size_t zidx;
+  size_t brightLhood;
+  size_t darkLhood;
+  size_t resample;
+  size_t dLhood;
+
 } sz_str;
 
 typedef struct secondary_vectors

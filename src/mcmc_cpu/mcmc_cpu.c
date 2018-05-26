@@ -2,6 +2,9 @@
  * Implementation of MCMC Metropolis-Hastings Algorithm
  * using CPU for processing
  */
+#ifndef __MCMC_CPU_C__
+#define __MCMC_CPU_C__
+
 #include "mcmc_cpu.h"
 
 const int PRIOR_SD = 5;
@@ -40,7 +43,7 @@ void cpu_sampler(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct,
   res->mcmcTime = stopMcmc * 1000 / CLOCKS_PER_SEC;   // mcmc time in ms
   res->acceptance = (double)accepted_samples / mcin.Ns;
 
-  free_mcmc_vectors(mclocv);
+  free_mcmc_vectors(mclocv, mcin);
 }
 
 void metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct, mcmc_v_str mcdata,
@@ -95,6 +98,7 @@ void burn_in_metropolis_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_
     mclocv.current[dim_idx] = mcdata.burn[dim_idx];
 
   clhood = log_likelihood(mclocv.current, data, mcin, &res);
+
   // calculate the current posterior
   mcloc->cposterior = log_prior(mclocv.current, mcin) + clhood;
 
@@ -209,7 +213,7 @@ void tune_ess_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct)
   
   free(samples);
   free(autocorr_lagk);
-  free_mcmc_vectors(mclocv);
+  free_mcmc_vectors(mclocv, mcin);
 }
 
 
@@ -272,7 +276,7 @@ void tune_target_a_cpu_v2(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_st
   fprintf(stdout, "Tuning finished. Selected rwsd = %5.3f\n\n", mct->rwsd);
   
   free(samples);
-  free_mcmc_vectors(mclocv);
+  free_mcmc_vectors(mclocv, mcin);
 }
 
 // tune rwsd for a target acceptance ratio
@@ -325,7 +329,7 @@ void tune_target_a_cpu(data_str data, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *
   fprintf(stdout, "Tuning finished. Selected rwsd = %5.3f\n\n", mct->rwsd);
   
   free(samples);
-  free_mcmc_vectors(mclocv);
+  free_mcmc_vectors(mclocv, mcin);
 }
 
 void short_run_burn_in(data_str data, gsl_rng *r, mcmc_int_v mclocv, mcmc_str mcin, double sd, mcmc_int *mcloc)
@@ -444,7 +448,7 @@ double log_likelihood(double *sample, data_str data, mcmc_str mcin, out_str *res
   for(idx=0; idx<mcin.Nd; idx++){
     log_lik -= log(1+exp(data.mvout[idx]));
   }
-  stopLikelihood = startLikelihood - clock();
+  stopLikelihood = clock() - startLikelihood;
   res->cpuTime += (stopLikelihood * 1000 / CLOCKS_PER_SEC) / mcin.Ns;
   return log_lik;
 }
@@ -459,3 +463,5 @@ double log_likelihood(double *sample, data_str data, mcmc_str mcin, out_str *res
 //   }
 //   return log_lik;
 // }
+
+#endif // __MCMC_CPU_C__

@@ -1,6 +1,9 @@
+#ifndef __PERFORMANCE_TEST_C__
+#define __PERFORMANCE_TEST_C__
+
 #include "performanceTest.h"
 
-const int KERNELS = 4;
+const int KERNELS = 1;
 
 
 int main(int argc, char *argv[])
@@ -26,6 +29,7 @@ int main(int argc, char *argv[])
     int dim_idx, kernel_idx, block_idx;
 
     read_inputs(argc, argv, &mcin, &sec);
+    mcin.impl = GPU;
 
     if(sec.fdata == 1){
         strcpy(indir, "data/performance/synthetic.csv");
@@ -36,13 +40,14 @@ int main(int argc, char *argv[])
     }
     
     if(sec.first == 1){ write_perf_out_csv(outdir, res, true); }  //create the header of the csv
-    
+
     malloc_data_vectors(&data, mcin);
 
     read_data(indir, ColMajor, data, mcin);
 
     mct.rwsd = 2.38 / sqrt(mcin.ddata);
 
+    fprintf(stderr, "Running on GPU..\n");
     for(kernel_idx=0; kernel_idx<KERNELS; kernel_idx++)
     {
         gpu.size = mcin.Nd;
@@ -82,7 +87,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Nd: %d, Kernel: %d, block: %d DONE!\n", mcin.Nd, kernel_idx, block_idx);
         }
     }
-
+    fprintf(stderr, "Running on CPU..\n");
     mcin.Ns /= 20;      // run cpu for less iterations
     mcin.burnin /= 20;
 
@@ -109,13 +114,15 @@ int main(int argc, char *argv[])
     res.samples = mcin.Ns;
     res.burnSamples = mcin.burnin; 
     res.gpuTime = 0;
-       
+
     write_perf_out_csv(outdir, res, false);
 
     free_sample_vectors(mcdata);
     free_autocorrelation_vectors(secv);
-    free_data_vectors(data);
+    free_data_vectors(data, mcin);
     free_rng(r);
 
     return 0;
 }
+
+#endif // __PERFORMANCE_TEST_C__

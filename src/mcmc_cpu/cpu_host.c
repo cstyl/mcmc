@@ -5,6 +5,9 @@
  * The sequence can be used to approximate the distribution (eg histogram) 
  * or compute an integral (eg expected value)
  */
+#ifndef __CPU_HOST_C__
+#define __CPU_HOST_C__
+
 #include "cpu_host.h"
 
 int main(int argc, char * argv[])
@@ -27,7 +30,8 @@ int main(int argc, char * argv[])
   init_rng(&r);
 
   read_inputs(argc, argv, &mcin, &sec);
-
+  mcin.impl = CPU;
+  
   if(sec.fdata == 1){
     strcpy(indir, "data/host/synthetic.csv");
     strcpy(outdir, "out/host/synthetic/cpu_");
@@ -62,9 +66,11 @@ int main(int argc, char * argv[])
   write_csv_outputs(outdir, mcdata, mcin, sec, secv);
 
   free_autocorrelation_vectors(secv);
-  free_data_vectors(data);
+  free_data_vectors(data, mcin);
   free_sample_vectors(mcdata);
   free_rng(r);
 
   return 0;
 }
+
+#endif // __CPU_HOST_C__

@@ -1,3 +1,6 @@
+#ifndef __DATA_UTIL_C__
+#define __DATA_UTIL_C__
+
 #include "data_util.h"
 
 void read_data(char* dir, int store, data_str data, mcmc_str mcin)
@@ -14,6 +17,11 @@ void read_data(char* dir, int store, data_str data, mcmc_str mcin)
   fprintf(stdout, "Importing data. ");
   while ((row = CsvParser_getRow(csvparser)) && (datapoint<mcin.Nd)) {
     char **rowFields = CsvParser_getFields(row);
+    if(mcin.impl == MP)
+    {
+      data.zlabels[datapoint] = 0;      // initialize z label to 0
+      data.zidx[datapoint] = datapoint; // get the index of the datapoint
+    }
     for (i = 0 ; i < CsvParser_getNumFields(row) ; i++) {
       if(i == 0){
         if(atof(rowFields[i]) > 0){
@@ -177,3 +185,5 @@ void write_autocorr(char *filename, double *autocorrelation, sec_str sec)
   fclose(fp);
   fprintf(stdout, "File created\n"); 
 }
+
+#endif // __DATA_UTIL_C__

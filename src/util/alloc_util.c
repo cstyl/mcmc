@@ -1,22 +1,41 @@
+#ifndef __ALLOC_UTIL_C__
+#define __ALLOC_UTIL_C__
+
 #include "alloc_util.h"
 
 void malloc_data_vectors(data_str *data, mcmc_str mcin)
 {
   data->data = NULL;
-  data->labels = NULL;
-  data->mvout = NULL;
 
   data->data = (double *) malloc(mcin.ddata * mcin.Nd * sizeof(double));
   if(data->data == NULL)
     fprintf(stderr, "ERROR: Data Memory allocation did not complete successfully!\n");
 
+
+  data->mvout = NULL;
   data->mvout = (double *) malloc(mcin.Nd * sizeof(double));  
   if(data->mvout == NULL)
-    fprintf(stderr, "ERROR: MVout Data Memory allocation did not complete successfully!\n");
+    fprintf(stderr, "ERROR: MVout Data Memory allocation did not complete successfully!\n");  
 
-  data->labels = (int8_t *) malloc(mcin.Nd * sizeof(int8_t));  
-  if(data->labels == NULL)
-    fprintf(stderr, "ERROR: Labels Data Memory allocation did not complete successfully!\n");
+  if(mcin.impl == MP)
+  {
+    data->dataf = NULL;
+    data->zlabels = NULL;
+    data->zidx = NULL;
+
+    data->dataf = (float *) malloc(mcin.ddata * mcin.Nd * sizeof(float));
+    if(data->dataf == NULL)
+      fprintf(stderr, "ERROR: Single Precision Data Memory allocation did not complete successfully!\n");
+
+    data->zlabels = (int8_t *) malloc(mcin.Nd * sizeof(int8_t));
+    if(data->zlabels == NULL)
+      fprintf(stderr, "ERROR: Z Labels Data Memory allocation did not complete successfully!\n");
+
+    data->zidx = (int *) malloc(mcin.Nd * sizeof(int));
+    if(data->zidx == NULL)
+      fprintf(stderr, "ERROR: Z Indexes Data Memory allocation did not complete successfully!\n");
+  }
+
 }
 
 void malloc_sample_vectors(mcmc_v_str *mcdata, mcmc_str mcin)
@@ -77,13 +96,34 @@ void malloc_mcmc_vectors(mcmc_int_v *mclocv, mcmc_str mcin)
   mclocv->current = (double *) malloc(mcin.ddata * sizeof(double));  
   if(mclocv->current == NULL)
     fprintf(stderr, "ERROR: Current Samples Memory allocation did not complete successfully!\n");
+  
+  if(mcin.impl == MP)
+  {
+    mclocv->proposedf = NULL;
+    mclocv->currentf = NULL;
+
+    mclocv->proposedf = (float *) malloc(mcin.ddata * sizeof(float));
+    if(mclocv->proposedf == NULL)
+      fprintf(stderr, "ERROR: Single Precision Proposed Samples Memory allocation did not complete successfully!\n");
+    
+    mclocv->currentf = (float *) malloc(mcin.ddata * sizeof(float));  
+    if(mclocv->currentf == NULL)
+      fprintf(stderr, "ERROR: Single Precision Current Samples Memory allocation did not complete successfully!\n");
+  }
 }
 
-void free_data_vectors(data_str data)
+void free_data_vectors(data_str data, mcmc_str mcin)
 {
   free(data.data);
   free(data.mvout);
-  free(data.labels);
+
+  if(mcin.impl == MP)
+  {
+    free(data.dataf);
+    free(data.zlabels);
+    free(data.zidx);    
+  }
+
 }
 
 void free_sample_vectors(mcmc_v_str mcdata)
@@ -101,10 +141,16 @@ void free_autocorrelation_vectors(sec_v_str secv)
   free(secv.circ);
 }
 
-void free_mcmc_vectors(mcmc_int_v mclocv)
+void free_mcmc_vectors(mcmc_int_v mclocv, mcmc_str mcin)
 {
   free(mclocv.proposed);
   free(mclocv.current);
+  if(mcin.impl == MP)
+  {
+    free(mclocv.proposedf);
+    free(mclocv.currentf);    
+  }
+
 }
 
 void init_rng(gsl_rng **r)
@@ -123,3 +169,5 @@ void free_rng(gsl_rng *r)
 {
   gsl_rng_free(r); 
 }
+
+#endif // __ALLOC_UTIL_C__

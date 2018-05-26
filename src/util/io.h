@@ -1,5 +1,5 @@
-#ifndef __IO_HEAD_H__
-#define __IO_HEAD_H__
+#ifndef __IO_H__
+#define __IO_H__
 
 #include "resources.h"
 #include "alloc_util.h"
@@ -26,4 +26,4 @@ void write_csv_outputs(char *rootdir, mcmc_v_str mcdata, mcmc_str mcin,
 }
 #endif
 
-#endif // __IO_HEAD_H__
+#endif // __IO_H__

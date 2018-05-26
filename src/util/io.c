@@ -1,3 +1,6 @@
+#ifndef __IO_C__
+#define __IO_C__
+
 #include "io.h"
 
 void read_inputs(int an, char *av[], mcmc_str *mcin, sec_str *sec)
@@ -148,7 +151,7 @@ void read_inputs_gpu(int an, char *av[], mcmc_str *mcin, sec_str *sec, gpu_v_str
       if(ai+1 >= an){
         fprintf(stderr, "Missing argument to -kernel.");
         exit(1);        
-      }else if((atoi(av[ai+1]) < 0) || (atoi(av[ai+1]) > 3)){
+      }else if((atoi(av[ai+1]) < 0) || (atoi(av[ai+1]) > 7)){
         fprintf(stderr, "Please enter a valid value.");
         exit(1);   
       }
@@ -236,3 +239,4 @@ void write_csv_outputs(char *rootdir, mcmc_v_str mcdata, mcmc_str mcin,
   fprintf(stdout, "**********************************************************\n"); 
 }
 
+#endif // __IO_C__

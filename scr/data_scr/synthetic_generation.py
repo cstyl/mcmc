@@ -13,8 +13,9 @@ def csv_writer(data, path, idx, split):
             line_idx += 1
             writer.writerow(line)
         
-        if(((idx+1)%(SPLIT/10) == 0) and (SPLIT >= 10)):
-            print('Batch ' + str(idx+1) + " Completed")
+        if(SPLIT>=10):
+            if((idx+1)%(SPLIT/10) == 0):
+                print('Batch ' + str(idx+1) + " Completed")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process dataset size and dimensionality')
@@ -49,8 +50,10 @@ if __name__ == "__main__":
                     data[i][j] = 1
                 else:
                     data[i][j] = np.random.uniform(0,1)
-        if(((idx+1)%(SPLIT/10) == 0) and (SPLIT >= 10)):
-            print('Batch ' + str(idx+1) + '/' + str(SPLIT) + ': Points Generated')
+        
+        if(SPLIT>=10):
+            if((idx+1)%(SPLIT/10) == 0):
+                print('Batch ' + str(idx+1) + '/' + str(SPLIT) + ': Points Generated')
 
         for i in range(block_start_idx, block_end_idx):
             acc = 0;
@@ -61,7 +64,8 @@ if __name__ == "__main__":
             else:
                 data[i][0] = 1
 
-        if(((idx+1)%(SPLIT/10) == 0) and (SPLIT >= 10)):
-            print('Batch ' + str((idx+1)) + '/' + str(SPLIT) + ': Labels Generated')
+        if(SPLIT>=10):
+            if((idx+1)%(SPLIT/10) == 0):
+                print('Batch ' + str((idx+1)) + '/' + str(SPLIT) + ': Labels Generated')
         
         csv_writer(data, path, idx, SPLIT)

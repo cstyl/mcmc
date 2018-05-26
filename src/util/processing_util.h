@@ -7,6 +7,11 @@
 extern "C" {
 #endif
 
+void getSizes_mp(sz_str *sz, mcmc_str mcin, gpu_v_str gpu);
+
+int nextPow2(int d_data);
+void getBlocksAndThreads(int kernel, int n, int maxBlocks, int maxThreads, int *blocks, int *threads);
+
 void normalise_samples(double *raw_in, double *norm_out,
                       int data_dim, int sz);
 double get_bias_mean(double *in_vec, int data_dim, int sample_sz);

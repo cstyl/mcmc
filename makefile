@@ -6,7 +6,7 @@ NVCC = /mnt/applications/nvidia/cuda-9.0/bin/nvcc
 
 GSL = /mnt/applications/gsl/2.4
 CUDA = /mnt/applications/nvidia/cuda-9.0
-
+CUB = /lib/cub-1.8.0/cub
 
 GCCFLAGS += -O3
 GCCFLAGS += -g -W -Wall
@@ -40,6 +40,7 @@ NVCC =
 
 GSL = /usr/local
 CUDA = 
+CUB =
 
 GCCFLAGS += -O3
 GCCFLAGS += -g -W -Wall
@@ -75,45 +76,50 @@ CSVPARSER = $(LIB)/ccsvparser/src
 UTIL = $(SRC)/util
 MCMC_CPU = $(SRC)/mcmc_cpu
 MCMC_GPU = $(SRC)/mcmc_gpu
-
+MCMC_MP = $(SRC)/mcmc_mp
+RED = $(SRC)/reduction
 TEST = $(SRC)/tests
 
 DATA_SCRIPTS = $(SCR)/data_scr
 PLOT_SCRIPTS = $(SCR)/plot_scr
 SH_SCRIPTS =  $(SCR)/sh_scr
 
-VPATH = $(CSVPARSER) $(UTIL) $(MCMC_CPU) $(MCMC_GPU)\
+VPATH = $(CSVPARSER) $(UTIL) $(MCMC_CPU) $(MCMC_GPU) $(RED)\
  		$(TEST) $(DATA)\
 		$(DATA_SCRIPTS) $(PLOT_SCRIPTS) $(SH_SCRIPTS)
 
-INCLUDES += -I$(GSL)/include -I$(CUDA)/include -Iinclude \
-			-I$(MCMC_CPU) -I$(MCMC_GPU) -I$(CSVPARSER) -I$(UTIL)
+INCLUDES += -I$(GSL)/include -I$(CUDA)/include -Iinclude -I$(CUB)\
+			-I$(MCMC_CPU) -I$(MCMC_GPU) -I$(CSVPARSER) -I$(UTIL) \
+			-I$(TEST) -I$(RED)
 
 LIB_OBJ = $(OBJ)/csvparser.o
 UTIL_OBJ = $(OBJ)/alloc_util.o $(OBJ)/data_util.o $(OBJ)/processing_util.o \
 			$(OBJ)/io.o
-ALL_OBJ = $(LIB_OBJ) $(UTIL_OBJ)
-CPU_OBJ = $(OBJ)/cpu_host.o $(OBJ)/mcmc_cpu.o
-GPU_OBJ =  $(OBJ)/mcmc_gpu.o $(OBJ)/mcmc_gpu_kernel.o $(OBJ)/gpu_util.o $(OBJ)/gpu_host.o
+RED_OBJ = $(OBJ)/reduction_kernel.o
+ALL_OBJ = $(LIB_OBJ) $(UTIL_OBJ) $(RED_OBJ)
 
-PERF_TEST_OBJ = $(OBJ)/performanceTest.o $(OBJ)/mcmc_cpu.o $(OBJ)/mcmc_gpu.o \
-				$(OBJ)/mcmc_gpu_kernel.o $(OBJ)/gpu_util.o
+CPU_OBJ = $(OBJ)/cpu_host.o $(OBJ)/mcmc_cpu.o
+GPU_OBJ =  $(OBJ)/mcmc_gpu.o $(OBJ)/gpu_host.o
+
+PERF_TEST_OBJ = $(OBJ)/performanceTest.o $(OBJ)/mcmc_cpu.o $(OBJ)/mcmc_gpu.o
 
 all: clean $(BIN)/mcmc_cpu $(BIN)/mcmc_gpu $(BIN)/performance
 
 both: cpu gpu
 
 cpu: $(BIN)/mcmc_cpu
-	$(BIN)/mcmc_cpu -d 1 -sz 5000 -dim 5 -samp 20000 -burn 5000 -lag 500 -tune 0
+	mkdir -p $(OUT)/host/synthetic $(OUT)/host/mnist
+	$(BIN)/mcmc_cpu -d 1 -sz 5000 -dim 10 -samp 20000 -burn 5000 -lag 500 -tune 1
 
 gpu: $(BIN)/mcmc_gpu
-	$(BIN)/mcmc_gpu -d 1 -sz 5000 -dim 5 -samp 20000 -burn 5000 -lag 500 -tune 0 \
-					-maxThreads 128 -maxBlocks 64 -kernel 0 -cpuThresh 32
+	mkdir -p $(OUT)/host/synthetic $(OUT)/host/mnist
+	$(BIN)/mcmc_gpu -d 1 -sz 5000 -dim 10 -samp 20000 -burn 5000 -lag 500 -tune 1 \
+					-maxThreads 128 -maxBlocks 64 -kernel 6 -cpuThresh 32
 
 hostSynthetic: $(DATA_SCRIPTS)
 	rm -rf $(DATA)/host
 	mkdir -p $(DATA)/host/
-	python $(DATA_SCRIPTS)/synthetic_generation.py -sz 5000 -dim 5 -split 10 -dir host
+	python $(DATA_SCRIPTS)/synthetic_generation.py -sz 5000 -dim 10 -split 10 -dir host
 
 performanceTest: $(DATA_SCRIPTS) $(SH_SCRIPTS) $(BIN)/performance
 	rm -rf $(OUT)/performance/ $(DATA)/performance/

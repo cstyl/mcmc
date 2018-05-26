@@ -1,4 +1,75 @@
+#ifndef __PROCESSING_UTIL_C__
+#define __PROCESSING_UTIL_C__
+
 #include "processing_util.h"
+
+#define MIN(x,y) ((x < y) ? x : y)
+
+void getSizes_mp(sz_str *sz, mcmc_str mcin, gpu_v_str gpu)
+{
+  sz->samples = mcin.ddata * sizeof(double);
+  sz->samplesf = mcin.ddata * sizeof(float);
+
+  sz->data = mcin.ddata * mcin.Nd * sizeof(double);
+  sz->dataf = mcin.ddata * mcin.Nd * sizeof(float);
+
+  sz->cuLhood = mcin.Nd * sizeof(double);
+  sz->cuLhoodf = mcin.Nd * sizeof(float);
+
+  sz->lhood = gpu.blocks * sizeof(double);
+
+  sz->zlabels = mcin.Nd * sizeof(int8_t);
+  sz->zidx = mcin.Nd * sizeof(int);
+
+  sz->brightLhood = mcin.Nd * sizeof(double);   
+  sz->darkLhood = mcin.Nd * sizeof(float);       
+
+  sz->resample = 2 * mcin.Nd * sizeof(double);   // requires double the memory
+
+  sz->dLhood = mcin.Nd * sizeof(double);
+}
+
+// int nextPow2(int d_data){
+//   int ctr = 0;
+
+//   while(d_data!=0){
+//     d_data = d_data/2;
+//     ctr++;
+//   }
+
+//   return pow(2,ctr);
+// }
+int nextPow2(int d_data)
+{
+    --d_data;
+    d_data |= d_data >> 1;
+    d_data |= d_data >> 2;
+    d_data |= d_data >> 4;
+    d_data |= d_data >> 8;
+    d_data |= d_data >> 16;
+    return ++d_data;
+}
+
+void getBlocksAndThreads(int kernel, int n, int maxBlocks, int maxThreads, int *blocks, int *threads)
+{
+    int lthreads, lblocks;
+
+    if(kernel<3)
+    {
+        // if data less than the # of threads per block make threads per block the next power of 2
+        // otherwise use the preset maximum threads
+        lthreads = (n < maxThreads) ? nextPow2(n) : maxThreads;  
+        lblocks = (n + lthreads - 1) / lthreads;
+    }else{
+        lthreads = (n < maxThreads*2) ? nextPow2((n + 1)/ 2) : maxThreads;
+        lblocks = (n + (lthreads * 2 - 1)) / (lthreads * 2);
+    }
+
+    if(kernel == 6) lblocks = MIN(maxBlocks, lblocks);
+
+    *threads = lthreads;
+    *blocks = lblocks;
+}
 
 void normalise_samples(double *raw_in, double *norm_out,
                       int data_dim, int sz)
@@ -196,3 +267,5 @@ void calculate_normalised_sample_means(mcmc_v_str mcdata, mcmc_str mcin)
     mcdata.sample_means[current_idx] = get_dim_mean(mcdata.nsamples, mcin.ddata, current_idx, mcin.Ns);
   }
 }
+
+#endif  // __PROCESSING_UTIL_C__

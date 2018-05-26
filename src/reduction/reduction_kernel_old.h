@@ -1,5 +1,5 @@
-#ifndef __GPU_MCMC_KERNEL_H__
-#define __GPU_MCMC_KERNEL_H__
+#ifndef __REDUCTION_KERNEL_H__
+#define __REDUCTION_KERNEL_H__
 
 #if defined (__cplusplus)
 extern "C" {
@@ -14,4 +14,4 @@ void reductiond(int size, int threads, int blocks, int kernel,
 }
 #endif
 
-#endif //__GPU_MCMC_KERNEL_H__
+#endif //__REDUCTION_KERNEL_H__

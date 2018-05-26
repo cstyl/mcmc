@@ -1,3 +1,6 @@
+#ifndef __MCMC_GPU_CU__
+#define __MCMC_GPU_CU__
+
 #include "mcmc_gpu.h"
 
 const int PRIOR_SD = 5;
@@ -70,7 +73,7 @@ void gpu_sampler(data_str data, gsl_rng *r, mcmc_str mcin,
   cudaFree(d.data);
   cudaFree(d.cuLhood);
   cudaFree(d.lhood);
-  free_mcmc_vectors(mclocv);
+  free_mcmc_vectors(mclocv, mcin);
   cublasDestroy(handle);
 }
 
@@ -167,17 +170,50 @@ void burn_in_metropolis_gpu(cublasHandle_t handle, gsl_rng *r, mcmc_str mcin,
   fprintf(stdout, "Burn in process finished.\n\n");
 }
 
-double gpu_likelihood_d(cublasHandle_t handle, mcmc_str mcin, gpu_v_str gpu,
-                        double *samples, size_t sampleSz, dev_v_str d, 
-                        double *host_lhood, out_str *res)
+double reduction_d(gpu_v_str gpu, dev_v_str d, double *host_lhood, double *ke_acc_Bytes)
 {
   double gpu_result = 0;
   int i;
   int numBlocks = gpu.blocks;
   int threads, blocks;
 
+  *ke_acc_Bytes = gpu.size * sizeof(double);
+
+  reduceSum_d(gpu.size, gpu.threads, gpu.blocks, gpu.kernel, d.cuLhood, d.lhood, 0);
+
+  while(numBlocks >= gpu.cpuThresh)
+  {
+    getBlocksAndThreads(gpu.kernel, numBlocks, gpu.maxBlocks, gpu.maxThreads, &blocks, &threads);
+    
+    ke_acc_Bytes += numBlocks * sizeof(double);
+    
+    cudaMemcpy(d.cuLhood, d.lhood, numBlocks*sizeof(double), cudaMemcpyDeviceToDevice);
+    reduceSum_d(numBlocks, threads, blocks, gpu.kernel, d.cuLhood, d.lhood, 1);    
+
+    if(gpu.kernel < 3)
+    {
+      numBlocks = (numBlocks + threads - 1) / threads;
+    }else{
+      numBlocks = (numBlocks +(threads*2-1)) / (threads*2);
+    }
+  }
+
+  cudaMemcpy(host_lhood, d.lhood, numBlocks*sizeof(double), cudaMemcpyDeviceToHost);  
+  // accumulate result on CPU
+  for(i=0; i<numBlocks; i++){
+    gpu_result += host_lhood[i];
+  }
+
+  return gpu_result;
+}
+
+double gpu_likelihood_d(cublasHandle_t handle, mcmc_str mcin, gpu_v_str gpu,
+                        double *samples, size_t sampleSz, dev_v_str d, 
+                        double *host_lhood, out_str *res)
+{
   double ke_acc_Bytes = 0;
   double cuBytes = 0;
+  double reduced_lhood = 0;
   double a = 1.0;
   double b = 0.0;
   float cu_ms = 0;
@@ -196,33 +232,11 @@ double gpu_likelihood_d(cublasHandle_t handle, mcmc_str mcin, gpu_v_str gpu,
   cudaDeviceSynchronize();
   cudaEventRecord(cuStop);
 
-  ke_acc_Bytes = gpu.size * sizeof(double);
   cudaEventRecord(keStart);
-  reductiond(gpu.size, gpu.threads, gpu.blocks, gpu.kernel, true, d.cuLhood, d.lhood);
+  reduced_lhood = reduction_d(gpu, d, host_lhood, &ke_acc_Bytes);
   cudaDeviceSynchronize();
-  while(numBlocks >= gpu.cpuThresh)
-  {
-    getBlocksAndThreads(gpu.kernel, numBlocks, gpu.maxBlocks, gpu.maxThreads, &blocks, &threads);
-    
-    ke_acc_Bytes += numBlocks * sizeof(double);
-    
-    cudaMemcpy(d.cuLhood, d.lhood, numBlocks*sizeof(double), cudaMemcpyDeviceToDevice);
-    reductiond(numBlocks, threads, blocks, gpu.kernel, false, d.cuLhood, d.lhood);
-    cudaDeviceSynchronize();
-    if(gpu.kernel < 1)
-    {
-      numBlocks = (numBlocks + threads - 1) / threads;
-    }else{
-      numBlocks = (numBlocks +(threads*2-1)) / (threads*2);
-    }
-  }
   cudaEventRecord(keStop);
 
-  cudaMemcpy(host_lhood, d.lhood, numBlocks*sizeof(double), cudaMemcpyDeviceToHost);  
-  // accumulate result on CPU
-  for(i=0; i<numBlocks; i++){
-    gpu_result += host_lhood[i];
-  }
 
   cudaEventSynchronize(cuStop); 
   cudaEventSynchronize(keStop);
@@ -238,8 +252,9 @@ double gpu_likelihood_d(cublasHandle_t handle, mcmc_str mcin, gpu_v_str gpu,
   res->gpuTime += (cu_ms + ke_ms) / mcin.Ns;
   res->gpuBandwidth += ((cuBytes + ke_acc_Bytes) / (cu_ms + ke_ms) / 1e6) / mcin.Ns;
 
-  return gpu_result;  
+  return reduced_lhood;  
 }
+
 // // tune rwsd for a target acceptance ratio
 void tune_ess_gpu(cublasHandle_t handle, gsl_rng *r, mcmc_str mcin, mcmc_tune_str *mct, 
                   mcmc_int_v mclocv, mcmc_int mcloc, sz_str sz,
@@ -552,7 +567,7 @@ void print_gpu_info()
     else
       printf( "Disabled\n" );
 
-    printf( "Kernel execition timeout : " ); 
+    printf( "Kernel execution timeout : " ); 
     if (prop.kernelExecTimeoutEnabled)
       printf( "Enabled\n" ); 
     else
@@ -580,3 +595,5 @@ void print_gpu_info()
     printf( "\n" );
   }  
 }
+
+#endif // __MCMC_GPU_CU__

@@ -7,8 +7,7 @@
 #include "resources.h"
 #include "processing_util.h"
 #include "alloc_util.h"
-#include "mcmc_gpu_kernel.h"
-#include "gpu_util.h"
+#include "reduction.h"
 
 #if defined (__cplusplus)
 extern "C" {
@@ -29,6 +28,7 @@ void burn_in_metropolis_gpu( cublasHandle_t handle, gsl_rng *r, mcmc_str mcin, m
                               gpu_v_str gpu, dev_v_str d, double *host_lhood
                            );
 
+double reduction_d(gpu_v_str gpu, dev_v_str d, double *host_lhood, double *ke_acc_Bytes);
 
 double gpu_likelihood_d( cublasHandle_t handle, mcmc_str mcin, gpu_v_str gpu, double *samples, 
                           size_t sampleSz, dev_v_str d, double *host_lhood, out_str *res

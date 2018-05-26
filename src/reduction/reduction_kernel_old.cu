@@ -1,8 +1,9 @@
-#include "mcmc_gpu_kernel.h"
-#include <cooperative_groups.h>
-#define FULL_MASK 0xffffffff
+#ifndef __REDUCTION_KERNEL_CU__
+#define __REDUCTION_KERNEL_CU__
 
-namespace cg = cooperative_groups;
+#include "reduction_kernel_old.h"
+
+#define FULL_MASK 0xffffffff
 
 bool isPow2(unsigned int x)
 {
@@ -19,7 +20,7 @@ __global__ void reductiond0( double *din, // input data: matrix to vector mul
   extern __shared__ double sdata[];
 
   int tidx = threadIdx.x;
-  int didx = blockIdx.x * blockDim.x + threadIdx.x;;
+  int didx = blockIdx.x * blockDim.x + threadIdx.x;
 
   // loads a single dot product to shared memory if this is the first time the kernel runs
   // otherwise loads tha accumulated data for previous run of reduction
@@ -512,3 +513,5 @@ void reductiond(int size, int threads, int blocks, int kernel,
       break;
   }
 }
+
+#endif // __REDUCTION_KERNEL_CU__
