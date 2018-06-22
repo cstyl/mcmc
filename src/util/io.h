@@ -16,12 +16,16 @@ void read_inputs_gpu(int an, char *av[], mcmc_str *mcin,
                         sec_str *sec, gpu_v_str *gpu
                     );
 void write_bandwidth_test_out(out_str res);
+void write_test_out(out_str res);
 void write_perf_out_csv(char *rootdir, out_str res, bool first);
 
 void print_normalised_sample_means(mcmc_v_str mcdata, mcmc_str mcin);
 void write_csv_outputs(char *rootdir, mcmc_v_str mcdata, mcmc_str mcin, 
                     sec_str sec, sec_v_str secv);
 
+void write_csv_outputs_sp(char *rootdir, mcmc_v_str mcdata, mcmc_str mcin, 
+                    sec_str sec, sec_v_str secv);
+void print_normalised_sample_means_sp(mcmc_v_str mcdata, mcmc_str mcin);
 #if defined (__cplusplus)
 }
 #endif

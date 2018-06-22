@@ -51,14 +51,24 @@ int main(int argc, char * argv[])
   int i;
   for(i=0; i<mcin.ddata; i++) mcdata.burn[i] = 0;
   
+  clock_t startTune, stopTune;
+  startTune = clock();
+  if(mcin.tune == 1)
+    tune_target_a_cpu_v2(data, r, mcin, &mct, mcdata.burn, 0.25, 40);
+  else if(mcin.tune == 2)  
+    tune_ess_cpu(data, r, mcin, &mct, mcdata.burn, 5000);    
+  stopTune = clock() - startTune;
+  res.tuneTime = stopTune * 1000 / CLOCKS_PER_SEC;   // tuning time in ms
+
+
   start  = clock();
-  cpu_sampler(data, r, mcin, &mct, mcdata, &res);
+  cpu_sampler(data, r, mcin, mct, mcdata, &res);
   stop = clock() - start;
 
   res.samplerTime = stop * 1000 / CLOCKS_PER_SEC;  // sampler time in ms
   res.ess = get_ess(mcdata.samples, mcin.Ns, mcin.ddata, sec.lagidx, secv.circ);
 
-  write_bandwidth_test_out(res);
+  write_test_out(res);
 
   calculate_normalised_sample_means(mcdata, mcin);
   print_normalised_sample_means(mcdata, mcin);

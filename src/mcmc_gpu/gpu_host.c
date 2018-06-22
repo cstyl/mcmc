@@ -28,6 +28,7 @@ int main(int argc, char * argv[])
   
   char indir[50], outdir[50];
   clock_t start, stop; 
+  clock_t startTune, stopTune;
 
   read_inputs_gpu(argc, argv, &mcin, &sec, &gpu);
   mcin.impl = GPU;
@@ -53,8 +54,16 @@ int main(int argc, char * argv[])
   int i;
   for(i=0; i<mcin.ddata; i++){ mcdata.burn[i] = 0; } 
 
+  startTune = clock();
+  if(mcin.tune == 1)
+    tune_target_a_gpu_v2(data, r, mcin, &mct, gpu, mcdata.burn, 0.25, 40);
+  else if(mcin.tune == 2)  
+    tune_ess_gpu(data, r, mcin, &mct, gpu, mcdata.burn, 5000);    
+  stopTune = clock() - startTune;
+  res.tuneTime = stopTune * 1000 / CLOCKS_PER_SEC;   // tuning time in ms
+
   start  = clock();
-  gpu_sampler(data, r, mcin, &mct, mcdata, gpu, &res);
+  gpu_sampler(data, r, mcin, mct, mcdata, gpu, &res);
   stop = clock() - start;
 
   res.samplerTime = stop * 1000 / CLOCKS_PER_SEC;  // sampler time in ms
@@ -64,7 +73,7 @@ int main(int argc, char * argv[])
 
   calculate_normalised_sample_means(mcdata, mcin);
   print_normalised_sample_means(mcdata, mcin);
-  
+
   write_csv_outputs(outdir, mcdata, mcin, sec, secv);
 
   free_autocorrelation_vectors(secv);

@@ -25,8 +25,25 @@ enum dataread{
 enum implementation{
   CPU,
   GPU,
+  SP,
   MP,
   CA
+};
+
+enum kernel_selection{
+  ModuloReduction,
+  InterleavedReduction,
+  SequentialReduction,
+  FirstOnLoadReduction,
+  UnrollLastReduction,
+  UnrollAllReduction,
+  MultipleThreadsReduction
+};
+
+enum reductionType{
+  LogRegression,
+  Reduction,
+  LogReduction
 };
 
 typedef struct data_vectors
@@ -35,6 +52,8 @@ typedef struct data_vectors
   float  *dataf;
   int8_t *labels;
   double *mvout;
+  float  *mvoutf;
+
   int8_t *zlabels;
   int    *zidx;
 } data_str;
@@ -46,27 +65,39 @@ typedef struct mcmc_vectors
   double *burn; // contains the burn samples in linearised space
   double *nburn; // contains the normalised burn samples in linearised space   
   double *sample_means;  
+
+  float *samplesf;  // contains the samples in linearised space
+  float *nsamplesf;  // contains the normalised samples in linearised space
+  float *burnf; // contains the burn samples in linearised space
+  float *nburnf; // contains the normalised burn samples in linearised space   
+  float *sample_meansf;  
 } mcmc_v_str;
 
 typedef struct mcmc_vars
 {
-  int ddata;         // actual dimensionality of datapoints
+  int ddata;          // actual dimensionality of datapoints
   int Nd;             // number of data points
   int Ndmap;
   int Ns;             // number of samples generated
-  int burnin;        // number of samples burned
-  int tune;       // 0=no tuning, 1=tune for target acceptance, 2=tune for max ess
-  int impl;     //0=CPU, 1=GPU, 2=MP, 3=CA
-
-  int bright;
-  int dark;
-  int cand;
-  int tdark;
+  int burnin;         // number of samples burned
+  int tune;           // 0=no tuning, 1=tune for target acceptance, 2=tune for max ess
+  int impl;           //0=CPU, 1=GPU, 2=MP, 3=CA
 } mcmc_str;
+
+typedef struct mcmc_mp_vars
+{
+  int dataBlocks;     // number of datablocks = ceil(Nd/dataBlocksz)
+  int dataBlockSz;    // number of datapoints in each block
+  int brightBlocks;
+  int darkBlocks;
+  int ResampFactor;   // every how many blocks to resample a dark datapoint
+  float ratio;
+} mp_str;
 
 typedef struct tuning_par
 {
   double rwsd;
+  float rwsdf;
 } mcmc_tune_str;
 
 typedef struct mcmc_internal_vectors
@@ -83,6 +114,11 @@ typedef struct mcmc_internal
   double pposterior;
   double acceptance;
   double u;
+
+  float cposteriorf;
+  float pposteriorf;
+  float acceptancef;
+  float uf;
 } mcmc_int;
 
 typedef struct device_vectors
@@ -92,15 +128,23 @@ typedef struct device_vectors
   double *cuLhood;
   double *lhood;
   // specific to mp imlpementation
-  float  *cuLhoodf;
   float  *samplesf;
   float  *dataf;
-  int8_t *zlabels;
-  int    *zidx;
-  double *brightLhood;
-  float  *darkLhood;
-  double *resample;
-  double *dLhood; // temp buffer
+  float *cuLhoodf;
+  float *lhoodf;
+
+  float  *dotS;
+  double *dotD;
+  int8_t *z;
+  int8_t *zResamp;
+  float  *LDb;
+  double *LBb;
+  float  *redLDb;
+  double *redLBb;
+  double *u;
+
+  double *LB, *LBtemp;
+  double *epsilon, *epsilonTemp;
 } dev_v_str;
 
 typedef struct gpu_parameters
@@ -124,19 +168,23 @@ typedef struct sizes_struct
 
   size_t samplesf;
   size_t dataf;
-  size_t zlabels;
-  size_t zidx;
-  size_t brightLhood;
-  size_t darkLhood;
-  size_t resample;
-  size_t dLhood;
-
+  size_t u;
+  size_t dotD;
+  size_t dotS;
+  size_t z;
+  size_t LBb;
+  size_t LDb;
+  size_t redLBb;
+  size_t redLDb;
 } sz_str;
 
 typedef struct secondary_vectors
 {
   double *shift;
   double *circ;
+
+  float *shiftf;
+  float *circf;
 } sec_v_str;
 
 typedef struct secondary_vars

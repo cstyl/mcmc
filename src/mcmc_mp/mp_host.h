@@ -5,7 +5,6 @@
 #include "resources.h"
 #include "io.h"
 
-
 #if defined (__cplusplus)
 extern "C" {
 #endif

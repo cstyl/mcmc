@@ -12,9 +12,6 @@ void read_inputs(int an, char *av[], mcmc_str *mcin, sec_str *sec)
       if(ai+1 >= an){
         fprintf(stderr, "Missing argument to -d.");
         exit(1);        
-      }else if((atoi(av[ai+1]) > 2) || (atoi(av[ai+1]) < 1)){
-        fprintf(stderr, "Please enter a valid dataset value.");
-        exit(1);   
       }
       sec->fdata = atoi(av[ai+1]);
       ai += 2;
@@ -82,9 +79,6 @@ void read_inputs_gpu(int an, char *av[], mcmc_str *mcin, sec_str *sec, gpu_v_str
       if(ai+1 >= an){
         fprintf(stderr, "Missing argument to -d.");
         exit(1);        
-      }else if((atoi(av[ai+1]) > 2) || (atoi(av[ai+1]) < 1)){
-        fprintf(stderr, "Please enter a valid dataset value.");
-        exit(1);   
       }
       sec->fdata = atoi(av[ai+1]);
       ai += 2;
@@ -195,6 +189,17 @@ void write_bandwidth_test_out(out_str res)
   fprintf(stdout, "Normalised Ess: %f samples/sec\n", res.ess * 1000 / res.mcmcTime);
 }
 
+void write_test_out(out_str res)
+{
+  fprintf(stdout, "Tuning Time: %f ms\n", res.tuneTime);
+  fprintf(stdout, "Burn In Time: %f ms\n", res.burnTime);
+  fprintf(stdout, "Metropolis Time: %f ms\n", res.mcmcTime);
+  fprintf(stdout, "Sampler Time: %f ms\n", res.samplerTime);
+  fprintf(stdout, "Acceptance Ratio: %f\n", res.acceptance);
+  fprintf(stdout, "Ess: %f\n", res.ess);
+  fprintf(stdout, "Normalised Ess: %f samples/sec\n", res.ess * 1000 / res.mcmcTime);
+}
+
 void print_normalised_sample_means(mcmc_v_str mcdata, mcmc_str mcin)
 {
   //get and print mean for each dimension
@@ -204,9 +209,28 @@ void print_normalised_sample_means(mcmc_v_str mcdata, mcmc_str mcin)
     fprintf(stdout, "%7d ", current_idx);
   }
   fprintf(stdout, "\nTheta:     ");
+
   for(current_idx = 0; current_idx < mcin.ddata; current_idx++){
-    fprintf(stdout, "%+7.3f ", mcdata.sample_means[current_idx]);
+    fprintf(stdout, "%+7.3f ", mcdata.sample_means[current_idx]);    
   }
+
+  fprintf(stdout, "\n\n");
+}
+
+void print_normalised_sample_means_sp(mcmc_v_str mcdata, mcmc_str mcin)
+{
+  //get and print mean for each dimension
+  int current_idx;
+  fprintf(stdout, "\nDimension: ");
+  for(current_idx = 0; current_idx < mcin.ddata; current_idx++){
+    fprintf(stdout, "%7d ", current_idx);
+  }
+  fprintf(stdout, "\nTheta:     ");
+
+  for(current_idx = 0; current_idx < mcin.ddata; current_idx++){
+      fprintf(stdout, "%+7.3f ", mcdata.sample_meansf[current_idx]);
+  }
+
   fprintf(stdout, "\n\n");
 }
 
@@ -239,4 +263,20 @@ void write_csv_outputs(char *rootdir, mcmc_v_str mcdata, mcmc_str mcin,
   fprintf(stdout, "**********************************************************\n"); 
 }
 
+void write_csv_outputs_sp(char *rootdir, mcmc_v_str mcdata, mcmc_str mcin, 
+                    sec_str sec, sec_v_str secv)
+{
+  fprintf(stdout, "*********************** File Output **********************\n");
+  // output normal files
+  output_files_sp(rootdir, mcdata, mcin);
+  // output normalised files
+  output_norm_files_sp(rootdir, mcdata, mcin);
+  output_means_sp(rootdir, mcdata, mcin);
+  fprintf(stdout, "**********************************************************\n"); 
+
+  // output autocorrelation
+  fprintf(stdout, "***************** Autocorrelation Output *****************\n");
+  output_autocorrelation_files_sp(rootdir, secv, sec);
+  fprintf(stdout, "**********************************************************\n"); 
+}
 #endif // __IO_C__

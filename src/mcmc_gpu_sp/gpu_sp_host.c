@@ -1,0 +1,87 @@
+/*
+ * Implementation of MCMC Metropolis-Hastings Algorithm on GPU
+ * Aim: Obtain a sequence of RANDOM samples from a probability distribution
+ * from which direct sampling is difficult
+ * The sequence can be used to approximate the distribution (eg histogram) 
+ * or compute an integral (eg expected value)
+ */
+#ifndef __GPU_SP_HOST_C__
+#define __GPU_SP_HOST_C__
+
+#include "gpu_sp_host.h"
+
+int main(int argc, char * argv[])
+{
+  data_str data;
+
+  mcmc_str mcin;
+  mcmc_tune_str mct;
+  mcmc_v_str mcdata;
+
+  sec_str sec;
+  sec_v_str secv;
+  
+  gpu_v_str gpu;
+  out_str res;
+
+  gsl_rng *r = NULL;
+  
+  char indir[50], outdir[50];
+  clock_t start, stop; 
+  clock_t startTune, stopTune;
+
+  read_inputs_gpu(argc, argv, &mcin, &sec, &gpu);
+  mcin.impl = SP;
+
+  if(sec.fdata == 1){
+    strcpy(indir, "data/host/synthetic.csv");
+    strcpy(outdir, "out/host/synthetic/sp_");
+  }else if(sec.fdata == 2){
+    strcpy(indir, "data/host/mnist.csv");
+    strcpy(outdir, "out/host/mnist/sp_");
+  }
+
+  malloc_data_vectors_sp(&data, mcin);
+  malloc_sample_vectors_sp(&mcdata, mcin);
+  malloc_autocorrelation_vectors_sp(&secv, sec);
+
+  init_rng(&r);
+
+  read_data_sp(indir, ColMajor, data, mcin);
+
+  mct.rwsdf = 2.38 / sqrt(mcin.ddata);
+  
+  int i;
+  for(i=0; i<mcin.ddata; i++){ mcdata.burnf[i] = 0; } 
+
+  startTune = clock();
+  if(mcin.tune == 1)
+    tune_target_a_sp_v2(data, r, mcin, &mct, gpu, mcdata.burnf, 0.25, 40);
+  else if(mcin.tune == 2)  
+    tune_ess_sp(data, r, mcin, &mct, gpu, mcdata.burnf, 5000);    
+  stopTune = clock() - startTune;
+  res.tuneTime = stopTune * 1000 / CLOCKS_PER_SEC;   // tuning time in ms
+
+  start  = clock();
+  sp_sampler(data, r, mcin, mct, mcdata, gpu, &res);
+  stop = clock() - start;
+
+  res.samplerTime = stop * 1000 / CLOCKS_PER_SEC;  // sampler time in ms
+  res.ess = get_ess_sp(mcdata.samplesf, mcin.Ns, mcin.ddata, sec.lagidx, secv.circf);
+  
+  write_bandwidth_test_out(res);
+
+  calculate_normalised_sample_means_sp(mcdata, mcin);
+  print_normalised_sample_means_sp(mcdata, mcin);
+  
+  write_csv_outputs_sp(outdir, mcdata, mcin, sec, secv);
+
+  free_autocorrelation_vectors_sp(secv);
+  free_data_vectors_sp(data, mcin);
+  free_sample_vectors_sp(mcdata);
+  free_rng(r);
+
+  return 0;
+}
+
+#endif // __GPU_SP_HOST_C__

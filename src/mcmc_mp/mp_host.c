@@ -11,6 +11,7 @@ int main(int argc, char * argv[])
   mcmc_str mcin;
   mcmc_tune_str mct;
   mcmc_v_str mcdata;
+  mp_str mpVar;
 
   sec_str sec;
   sec_v_str secv;
@@ -20,6 +21,8 @@ int main(int argc, char * argv[])
 
   gsl_rng *r = NULL;
   
+  double lowerBound;
+
   char indir[50], outdir[50];
   clock_t start, stop; 
 
@@ -34,21 +37,28 @@ int main(int argc, char * argv[])
     strcpy(outdir, "out/host/mnist/mp_");
   }
 
-  malloc_data_vectors(&data, mcin);
+  malloc_data_vectors_mp(&data, mcin);
   malloc_sample_vectors(&mcdata, mcin);
   malloc_autocorrelation_vectors(&secv, sec);
 
   init_rng(&r);
 
-  read_data(indir, RowMajor, data, mcin);
-  
-  mct.rwsd = 2.38 / sqrt(mcin.ddata);
+  read_data(indir, ColMajor, data, mcin);
+
+  // mct.rwsd = 2.38 / sqrt(mcin.ddata);
+  mct.rwsd = 2.313297;
   
   int i;
   for(i=0; i<mcin.ddata; i++){ mcdata.burn[i] = 0; } 
 
+  // lowerBound = abs(get_lowerbound(data, mcdata.burn, r, mcin, mct));
+  lowerBound =  0.0000001733252780189431518920173402875661849975585937500000000000;
+  // get_blockSz(data, r, &mpVar, mcin, mct, mcdata.burn, lowerBound*100);
+  mpVar.dataBlockSz = 64;
+  mpVar.dataBlocks = 16;
+  mpVar.ResampFactor = 2;
   start  = clock();
-  mp_sampler(data, r, mcin, &mct, mcdata, gpu, &res);
+  mp_sampler(data, r, &mpVar, mcin, mct, mcdata, lowerBound, &res);
   stop = clock() - start;
 
   res.samplerTime = stop * 1000 / CLOCKS_PER_SEC;  // sampler time in ms
